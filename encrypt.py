@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.ciphers import (
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 
-
+# Inicialización de clase Encrypt
 class Encrypt:
 
     def _init_(self, passwd: bytes):
@@ -28,30 +28,46 @@ class Encrypt:
                 backend=default_backend()
             )
 
-    def encrypt():
-        k = AESGCM.generate_key(bit_length=128)
-        c = rsa_encrypt(pk, k) + aes_encrypt(k, data)
-
-
-
-    def rsa_encrypt(pk, k) -> bytes:
-        return pk.encrypt(
-        k,
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None
-        )
+# Encriptación en RSA (clave pública -> criptografía asimétrica)
+def rsa_encrypt(pk, k) -> bytes:
+    return pk.encrypt(
+    k,
+    padding.OAEP(
+        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None
     )
-    
-    def aes_encrypt(k,data,as_data):
-        iv = os.urandom(12)
+)
 
-        encryptor = Cipher(
-            algorithms.AES(k),
-            modes.GCM(iv),
-        ).encryptor()
+# Encriptación en AES
+def aes_encrypt(k,data,as_data):
+    iv = k 
 
-        encryptor.authenticate_additional_data(as_data)
-        ciphertext = encryptor.update(data) + encryptor.finalize()
-        return (iv, ciphertext, encryptor.tag)
+    encryptor = Cipher(
+        algorithms.AES(k),
+        modes.GCM(iv),
+    ).encryptor()
+
+    encryptor.authenticate_additional_data(as_data)
+    ciphertext = encryptor.update(data) + encryptor.finalize()
+    return (iv, ciphertext, encryptor.tag)
+
+def encrypt(pk, data):
+    k = AESGCM.generate_key(bit_length=128)
+    c = rsa_encrypt(pk, k) + aes_encrypt(k, data)
+
+    return c
+
+# Desencriptación en RSA (se utiliza clave privada por criptografía asimétrica)
+def rsa_decrypt(k,c):
+    return k.decrypt(
+    c,
+    padding.OAEP(
+        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None
+    ) 
+    )
+
+def aes_decrypt(k, data):
+    return AESGCM(k).decrypt(k, data, None)
