@@ -8,15 +8,16 @@ from cryptography.hazmat.primitives.ciphers import (
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 import paho.mqtt.client as Client
+from pubkeys import PublicKeys
 
 MQTT_IP="18.100.158.114"
 MQTT_USERNAME="sinf"
 MQTT_PASSWD="HkxNtvLB3GC5GQRUWfsA"
-topic = "tuID"
+topic = "abh"
 
-
+### Lectura de claves públicas y privadas
 def read_public_key (file):
-    PB_PATH = os.path("pubkeys.py")
+    PB_PATH = os.path("") # Clave pública propia
 
     with open(file, "rb") as key_file:    
         pb_key = key_file.read()
@@ -24,8 +25,6 @@ def read_public_key (file):
             pb_key,
             backend=default_backend()
         )
-
-    
 
 def read_private_key():
     pr_path = os.path("") # Aquí va el archivo de clave privada
@@ -41,15 +40,6 @@ def read_private_key():
     return pra_key
 
 
-def input ():
-
-    usuarios = [item for item in input(f"Introduce los IDs de los usuarios (separados por comas): ").split(',')]
-    message = input(f"Introduce el mensaje a enviar: ")
-
-    n = len (usuarios)
-    for i in range (n-1,1):
-        nested_encrypt(message)
-
 # Encriptación en RSA (clave pública -> criptografía asimétrica)
 def rsa_encrypt(pk, k) -> bytes:
     return pk.encrypt(
@@ -63,21 +53,38 @@ def rsa_encrypt(pk, k) -> bytes:
 
 # Encriptación en AES
 def aes_encrypt(k,data,as_data):
-    iv = k 
+    aesgcm = AESGCM(k)
+    nonce = k
+    ciphertext = aesgcm.encrypt(nonce, data, None)
 
-    encryptor = Cipher(
-        algorithms.AES(k),
-        modes.GCM(iv),
-    ).encryptor()
+    return ciphertext
 
-    encryptor.authenticate_additional_data(as_data)
-    ciphertext = encryptor.update(data) + encryptor.finalize()
-    return (iv, ciphertext, encryptor.tag)
+# Procedimiento de encriptación
+def encrypt (pk, message: bytes):
+    k = AESGCM.generate_key(bit_length=128)
+    c = rsa_encrypt (pk,k) + aes_encrypt (k,message,None)
 
+    return c
 
+# Procedimiento 
+def nested_encrypt(users: list, pks: list, message: bytes):
+    # Primer paso: encriptación de mensaje + usuario final con marcador "END"
+    m = b'\x00'*(5-len(users[0].encode('ascii'))) + users[0].encode('ascii') + message
+    m = b'\x00'*(5-len(b'end')) + b'end' + message
+
+    # Segundo paso: encriptación del primer nodo
+    c = encrypt (pks[-1], m)
     
-  #  c = rsa_encrypt(pk, k) + aes_encrypt(k, data)
+    # Tercer paso: encriptación con el resto de nodos
+    for i in range (len(users[1:])-1,1):
+        print(pks[i-1])
+        print(users[i+1])
+        c = encrypt(pks[i-1], b'\x00'*(5-len(users[i+1].encode('ascii'))) + users[i+1].encode('ascii') + message)
+    
+    # Retornar mensaje completo
+    return c
 
+##### ALGORITMO 2 #####
 
 # Desencriptación en RSA (se utiliza clave privada por criptografía asimétrica)
 def rsa_decrypt(k,c):
@@ -91,37 +98,51 @@ def rsa_decrypt(k,c):
     )
 
 def aes_decrypt(k, data):
-    return AESGCM(k).decrypt(k, data, None)
+    aesgcm = AESGCM(k)
+    nonce = k
+    m = aesgcm.decrypt(nonce, data, None)
+    return m.decode('utf-8')
 
-# Procedimiento
-def nested_encrypt(pb, message):
-    # Coger mensaje recibido
-    m = bytes(message, 'utf-8')
+#Relay or decode algorithm
+def decode_Rely(message, private_key):
+    #c1h: clave simétrica
+    #c2h: mensaje
+    c1h = msg[:private_key.key_size]
+    c2h = msg[private_key.key_size:]
 
-    # Encriptar mensaje con cifrado simétrico y concatenar ID de usuario con mensaje
-    k = AESGCM.generate_key(bit_length=128)
-    mJoin = message[0] + b"|" + message[1]
-    c = aes_encrypt (k,mJoin,None)
-
-    # Encripto clave simétrica con clave pública (cifrado asimétrico)
-    mRSAEncrypt = rsa_encrypt (pb, k)
+    #Get the symmetric key: desencriptamos con la clave privada
+    k = rsa_decrypt(private_key, c1h)
     
-    # Retornar mensaje completo
-    return mRSAEncrypt + bytes(b"|","utf-8") + c
-
+    #Decrypt message
+    aux = aes_decrypt(k, c2h)
+        
+    next_hop = aux[:5]
+    c1h_next = aux[5:]
+    
+    if (next_hop == b'end') : #Si el siguiente nodo es el destinatario final
+        print("Message:", c2h.decode('ascii')) #Mensaje real
+        
+    else: # Por el contrario, si es un nodo intermedio reenviamos el mensaje al siguiente nodo
+        #se publica el mensaje (c1h, c2h)
+        return next_hop, (c1h_next, c2h)
+        
+   
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
         print("Connected to MQTT Broker!")
-        client.subscribe(topic)
+        client.publish(topic)
     else:
         print("Failed to connect, return code %d\n", rc)
 # Set Connecting Client ID
-    client.username_pw_set(MQTT_USERNAME,MQTT_PASSWD)
-    client.on_connect = on_connect
-    client.connect(MQTT_IP)
 
+def on_message(client: Client, userdata, message):
+    msg = message.payload
+    private_key = read_private_key()
+    m = decode_Rely(private_key,msg)
 
+    return m
+"""
 def subscribe(client: Client):
     def on_message(client, msg):
         compMessage = msg.payload
@@ -137,5 +158,43 @@ def subscribe(client: Client):
             client.publish(cabecera, message)
     client.subscribe(topic) # El topic es el ID propio
     client.on_message = on_message
-        
-#if __name__ == '__main__':        
+"""
+
+if __name__ == '__main__':    
+    
+    opcion = input(f"¿Qué acción quieres realizar? Encriptar, enviar mensaje o desencriptar.")
+    if opcion == "Activar nodo":
+        client = Client.Client() 
+        client.connect(MQTT_IP)
+        client.loop_forever()
+    elif opcion == "Encriptar":
+
+        usuarios = [item for item in input(f"Introduce los IDs de los usuarios (separados por comas): ").split(',')]
+        message = input(f"Introduce el mensaje a enviar: ")
+
+        pks = [PublicKeys.get_key(id) for id in usuarios[1:]]
+        m = bytes (message,'utf-8')
+
+        c = nested_encrypt(usuarios,pks,m)
+
+        print(f"El mensaje ha sido encriptado.\n")
+
+        client = Client.Client() 
+        client.username_pw_set(MQTT_USERNAME,MQTT_PASSWD)
+        client.on_connect = on_connect
+        client.connect(MQTT_IP)
+        print(f"Enviando mensaje al nodo ")
+        client.publish(topic,c)
+
+    elif opcion == "Desencriptar":        
+        #Conexion con MQTT
+        client = Client.Client() 
+        client.connect(MQTT_IP)
+        client.on_message = on_message 
+        client.subscribe(topic)#Recibir mensajes con x topic
+        client.loop_forever() #Conexión abierta para escuchar mensajes continuamente
+ 
+       
+
+
+
