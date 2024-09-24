@@ -17,8 +17,8 @@ topic = "abh"
 
 ### Lectura de claves públicas y privadas
 def read_public_key (file):
-    PB_PATH = os.path("") # Clave pública propia
-
+    PB_PATH = os.path("")  # Clave pública propia
+     
     with open(file, "rb") as key_file:    
         pb_key = key_file.read()
         pba_key = serialization.load_ssh_public_key(
@@ -27,13 +27,15 @@ def read_public_key (file):
         )
 
 def read_private_key():
-    pr_path = os.path("") # Aquí va el archivo de clave privada
+    #pr_path = os.path("clave")  # cambio
+    pr_path = os.path.join(os.getcwd(), "clave") # Aquí va el archivo de clave privada
 
     with open(pr_path, "rb") as key_file:    
         pr_key = key_file.read()
+        password="nuria" #cambio
         pra_key = serialization.load_ssh_private_key(
             pr_key,
-            password=None,
+            password=password.encode(), #None
             backend=default_backend()
         )
     
@@ -107,8 +109,8 @@ def aes_decrypt(k, data):
 def decode_Rely(message, private_key):
     #c1h: clave simétrica
     #c2h: mensaje
-    c1h = msg[:private_key.key_size]
-    c2h = msg[private_key.key_size:]
+    c1h = message[:private_key.key_size]
+    c2h = message[private_key.key_size:]
 
     #Get the symmetric key: desencriptamos con la clave privada
     k = rsa_decrypt(private_key, c1h)
@@ -124,7 +126,8 @@ def decode_Rely(message, private_key):
         
     else: # Por el contrario, si es un nodo intermedio reenviamos el mensaje al siguiente nodo
         #se publica el mensaje (c1h, c2h)
-        return next_hop, (c1h_next, c2h)
+        #return next_hop, (c1h_next, c2h)
+        client.publish(c1h_next, c2h)
         
    
 
@@ -139,7 +142,7 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client: Client, userdata, message):
     msg = message.payload
     private_key = read_private_key()
-    m = decode_Rely(private_key,msg)
+    m = decode_Rely(msg,private_key) #cambio
 
     return m
 """
@@ -183,15 +186,17 @@ if __name__ == '__main__':
         client.username_pw_set(MQTT_USERNAME,MQTT_PASSWD)
         client.on_connect = on_connect
         client.connect(MQTT_IP)
-        print(f"Enviando mensaje al nodo ")
+        print(f"Enviando mensaje al nodo ", c)
         client.publish(topic,c)
-
+  
     elif opcion == "Desencriptar":        
         #Conexion con MQTT
+        #client_id="nuci"
         client = Client.Client() 
+        client.username_pw_set(MQTT_USERNAME,MQTT_PASSWD)
         client.connect(MQTT_IP)
-        client.on_message = on_message 
         client.subscribe(topic)#Recibir mensajes con x topic
+        client.on_message = on_message
         client.loop_forever() #Conexión abierta para escuchar mensajes continuamente
  
        
