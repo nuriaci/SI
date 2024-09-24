@@ -17,8 +17,6 @@ topic = "abh"
 
 ### Lectura de claves públicas y privadas
 def read_public_key (file):
-    PB_PATH = os.path("")  # Clave pública propia
-     
     with open(file, "rb") as key_file:    
         pb_key = key_file.read()
         pba_key = serialization.load_ssh_public_key(
@@ -28,9 +26,7 @@ def read_public_key (file):
 
 def read_private_key():
     #pr_path = os.path("clave")  # cambio
-    pr_path = os.path.join(os.getcwd(), "clave") # Aquí va el archivo de clave privada
-
-    with open(pr_path, "rb") as key_file:    
+    with open("clave", "rb") as key_file:    
         pr_key = key_file.read()
         password="nuria" #cambio
         pra_key = serialization.load_ssh_private_key(
@@ -109,12 +105,12 @@ def aes_decrypt(k, data):
 def decode_Rely(message, private_key):
     #c1h: clave simétrica
     #c2h: mensaje
-    c1h = message[:private_key.key_size]
-    c2h = message[private_key.key_size:]
-
-    #Get the symmetric key: desencriptamos con la clave privada
-    k = rsa_decrypt(private_key, c1h)
+    c1h = message[:private_key.key_size//8]
+    c2h = message[private_key.key_size//8:]
     
+    #Get the symmetric key: desencriptamos con la clave privada
+    k = rsa_decrypt(private_key, c1h) #Falla 
+
     #Decrypt message
     aux = aes_decrypt(k, c2h)
         
