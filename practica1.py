@@ -67,22 +67,19 @@ def encrypt (pk, message: bytes):
 
 
 def nested_encrypt(users: list, pks: list, message: bytes):
-    m = embed_id(users[0].encode('ascii'),message)
+    m = embed_id(users[0].encode('utf-8'),message)
     m = embed_id(b'end',m)
-    
+
     c = encrypt (pks[-1], m)
     
-   
     for i in range (len(users[1:])-1, 0, -1):
-        c = encrypt(pks[i-1], embed_id(users[i+1].encode('ascii'),c))
+        c = encrypt(pks[i-1], embed_id(users[i+1].encode('utf-8'),c))
         
-  
     return c
 
 
 def embed_id(id: bytes, message: bytes) -> bytes:
-
-
+    print(5-len(id))
     return b'\x00'*(5-len(id)) + id + message
 
 def extract_id(message: bytes) -> bytes:
@@ -106,8 +103,7 @@ def aes_decrypt(k, data):
     aesgcm = AESGCM(k)
     nonce = k
     m = aesgcm.decrypt(nonce, data, None)
-    print ("MENSAJE;",m)
-    print (repr(m.decode('utf-8')))
+
     return m
 
 
@@ -116,23 +112,18 @@ def decode_Rely(message, private_key):
     c2h = message[private_key.key_size//8:]
     
     k = rsa_decrypt(private_key, c1h)
-    print(k)
-    print(c2h)
+
     aux = aes_decrypt(k, c2h)
-    print(aux)
-    print ("PASO")
+
     next_hop = extract_id(aux)
-    print (next_hop)
-    c1h_next = extract_message(aux)
-    print(c1h_next)
-    print(next_hop == b"end")
+    c1h_next = aux[5:]
     if next_hop == b"end": 
-        print("Message:", c1h_next.decode('utf-8')) 
+        sender = extract_id(c1h_next)
+        message = extract_message(c1h_next)
+        print("Sender: ", sender.decode('utf-8'), ", Message: ",message.decode('utf-8')) 
     
     else: 
         client.publish(c1h_next, c2h)
-        print ("VOY AQUI")
-
    
 
 def on_connect(client, userdata, flags, rc):
@@ -162,7 +153,6 @@ if __name__ == '__main__':
         m = message.encode('utf-8')
 
         c = nested_encrypt(usuarios,pks,m)
-        print (len(c))
 
         print(f"El mensaje ha sido encriptado.\n")
 

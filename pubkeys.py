@@ -30,7 +30,6 @@ class PublicKeys:
 
         print (id)
         k = cls.pubkey_dictionary.get(id)
-        print (('ssh-rsa ' + k).encode('ascii'))
 
         if k is None:
             print(f'Error: Could not get key for id \'{id}\'')
