@@ -123,7 +123,10 @@ def decode_Rely(message, private_key):
         print("Sender: ", sender.decode('utf-8'), ", Message: ",message.decode('utf-8')) 
     
     else: 
-        client.publish(c1h_next, c2h)
+        c1h_id = next_hop.decode('utf-8')
+        print (c1h_id)
+        c1h_message = c1h_next[5:]
+        client.publish(c1h_id, c1h_message)
    
 
 def on_connect(client, userdata, flags, rc):
