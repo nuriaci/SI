@@ -146,7 +146,8 @@ if __name__ == '__main__':
     
     if opcion == "Encriptar":
 
-        usuarios = [item for item in input(f"Introduce los IDs de los usuarios (separados por comas): ").split(',')]
+        usuarios = [item for item in input(f"Introduce los IDs de los usuarios (separados por comas). Si quieres que el mensaje sea anónimo, escribe None como primer identificador: ").split(',')]
+        
         message = input(f"Introduce el mensaje a enviar: ")
 
         pks = [PublicKeys.get_key(id) for id in usuarios[1:]]
