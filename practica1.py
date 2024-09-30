@@ -79,7 +79,6 @@ def nested_encrypt(users: list, pks: list, message: bytes):
 
 
 def embed_id(id: bytes, message: bytes) -> bytes:
-    print(5-len(id))
     return b'\x00'*(5-len(id)) + id + message
 
 def extract_id(message: bytes) -> bytes:
