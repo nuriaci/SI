@@ -13,7 +13,7 @@ from pubkeys import PublicKeys
 MQTT_IP="18.100.158.114"
 MQTT_USERNAME="sinf"
 MQTT_PASSWD="HkxNtvLB3GC5GQRUWfsA"
-topic = "abh"
+topic = "nuci"
 
 
 def read_public_key (file):
@@ -124,9 +124,7 @@ def decode_Rely(message, private_key):
     
     else: 
         c1h_id = next_hop.decode('utf-8')
-        print (c1h_id)
-        c1h_message = c1h_next[5:]
-        client.publish(c1h_id, c1h_message)
+        client.publish(c1h_id, c1h_next)
    
 
 def on_connect(client, userdata, flags, rc):
@@ -165,7 +163,7 @@ if __name__ == '__main__':
         client.on_connect = on_connect
         client.connect(MQTT_IP)
         print(f"Enviando mensaje al nodo ", c)
-        client.publish(topic,c)
+        client.publish(usuarios[1],c)
   
     elif opcion == "Desencriptar":        
         client = Client.Client() 
