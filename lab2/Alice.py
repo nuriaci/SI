@@ -14,20 +14,23 @@ def generarBitAleatorio():
     return b1
 
 def blum_micali(s):
-    n = m ** 3
+    n = m * 6
     p = 2011
     g = 564
     r = []
     print(s)
-    if s <= (p-1/2):
-        r.append(1)
-        print("1")
-    elif s > (p-1/2):
-        r.append(0)
-        print("0")
+    for i in range(n): #??
+        if s <= (p-1/2):
+            r.append(1)
+            print("1")
+        elif s > (p-1/2):
+            r.append(0)
+            print("0")
 
-    print("llego")
-    s = g**s % p
+        print("llego")
+        #s = g**s % p  
+        s = pow(g, s, p) 
+        
     print(f"Semilla: {s}")
     return r
 
@@ -85,13 +88,16 @@ if __name__ == "__main__":
     # Paso 2: recibir vector r de Bob
     r = mqtt.receive_message()
     print (r)
+    r = r.decode('utf-8')
+    r = [int(bit) for bit in r] 
+    print (r)   
     
     # Paso 3: fase de commitment
     vecE, vecB, seed = commitmentStage(r,b,n)
     messageSB = [seed,vecB]
     # Paso 4: envío de vectores generados
     mqtt.connect()
-    mqtt.publish(ID_BOB,vecE)
-    mqtt.publish(ID_BOB,messageSB)
+    mqtt.publish(ID_BOB,''.join(map(str, vecE)))
+    mqtt.publish(ID_BOB,''.join(map(str, messageSB)))
 
     

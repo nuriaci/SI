@@ -3,6 +3,7 @@ import time
 import numpy as np
 from mqtt import MQTT
 from mqtt import ID_ALICE,ID_BOB
+from bitstring import BitArray
 
 m = 16
 n = 3*m
@@ -35,7 +36,8 @@ def generarVectorR(q):
     ones_indices = np.random.choice(2 * q, q, replace=False)
     r[ones_indices] = 1
 
-    return r.tobytes()
+    #return r.tobytes()
+    return r
 
 def obtenerB(b0,b1):
     b = b0 ^ b1;
@@ -45,17 +47,24 @@ def xor_vectors(v1, v2):
     return [v1[i] ^ v2[i] for i in range(len(v1))]
 
 def blum_micali(s):
-    n = m ** 3
+    n = m * 6
     p = 2011
     g = 564
     r = []
-    if s <= (p-1/2):
-        r.append(1)
-    elif s > (p-1/2):
-        r.append(0)
+    s = int(s)
+    for i in range(n): #??
+        if s <= (p-1/2):
+            r.append(1)
+            print("1")
+        elif s > (p-1/2):
+            r.append(0)
+            print("0")
 
-    s = g**s % p
-
+        print("llego")
+        #s = g**s % p  
+        s = pow(g, s, p) 
+        
+    print(f"Semilla: {s}")
     return r
 
 # Filtración de subsecuencia de G(s) en donde los bits de r son igual a 1
@@ -80,7 +89,7 @@ def proveAndVerify(s,r,eRecibida, bitsRecibidos):
     if not np.array_equal(bitsRecibidos,bitsr0BOB):
         return False
 
-    # Paso 4: verificación de e
+    # Paso 4: verificación de e    falla????? tienen diferentes longitudes
     e = xor_vectors(cprima,Grsub)
 
     if not np.array_equal(eRecibida, e):
@@ -97,17 +106,29 @@ if __name__ == "__main__":
     time.sleep(2)
     # Paso 1: Generación de bits de vector r
     vecR = generarVectorR(q)
-    print(type(vecR))
-    # Paso 2: envío de bits a Alice
+
+    print(vecR)
     
-    mqtt.publish_message(ID_ALICE, vecR)
+    # Paso 2: envío de bits a Alice
+    mqtt.publish_message(ID_ALICE, ''.join(str(bit) for bit in vecR))
     print("ENVÍO")
+    
     # Paso 3: recepción de mensaje de Alice que incluye (s,b)
     messageE = mqtt.receive_message()
     messageSB = mqtt.receive_message()
-    # msg.payload
-    seed = messageSB[:n]
-    bitSeq = messageSB[n:]
+    #msg.payload
+    #seed = messageSB[:n]
+    #bitSeq = messageSB[n:]
+    
+    messageSB_str = messageSB.decode('utf-8')
+    indexMessage = messageSB_str.index('[')
+    seed = messageSB_str[:indexMessage]  
+    bitSeq = messageSB_str[indexMessage:]  
+    bitSeq = [int(x) for x in bitSeq.strip('[]').split(',')]
+    
+    messageE = messageE.decode('ascii') 
+    messageE = [int(x) for x in messageE.strip('[]').split(',')]
+
     verifyOk = proveAndVerify(seed, vecR, messageE, bitSeq)
 
     print("Verificación:", "Correcta" if verifyOk else "Incorrecta")
