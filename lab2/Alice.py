@@ -18,20 +18,15 @@ def blum_micali(s):
     p = 2011
     g = 564
     r = []
-    print(s)
     for i in range(n): #??
-        if s <= (p-1/2):
+        if s <= (p-1)/2:
             r.append(1)
-            print("1")
-        elif s > (p-1/2):
+        elif s > (p-1)/2:
             r.append(0)
-            print("0")
-
-        print("llego")
         #s = g**s % p  
         s = pow(g, s, p) 
         
-    print(f"Semilla: {s}")
+    print(f"Último valor de la semilla: {s}")
     return r
 
 def generarVectorC (r):
@@ -39,30 +34,21 @@ def generarVectorC (r):
 
 def commitmentStage(r,b,n):
     # Paso 1: Formación del vector de repetición c
-    print("paso1")
     c = generarVectorC(b)
 
     # Paso 2: Selección de semilla
-    print("paso2")
     s = random.getrandbits(n)
 
     # Paso 3: Generar secuencia pseudoaleatoria
-    print("paso3")
     Gs = blum_micali(s)
 
     # Paso 4: Filtrar subsecuencia de G(s) donde los bits de r son 1
-    print("paso4")
     Grsub = Grs(Gs,r)
 
     # Paso 5: Cálculo de e
-    print("paso5")
     e = xor_vectors(c,Grsub)
-
     # Paso 6: Envío de bits de G(s) donde los bits de r son 0
-    print("paso6")
     bits_r0 = [Gs[i] for i in range(len(r)) if r[i] == 0]
-
-    print("return")
     return e, bits_r0, s
 
 # Filtración de subsecuencia de G(s) en donde los bits de r son igual a 1
@@ -84,20 +70,31 @@ if __name__ == "__main__":
     b = []
     for i in range(m):
         b.append(generarBitAleatorio())
-    print(f"Cadena de bits generada: {b}")
     # Paso 2: recibir vector r de Bob
     r = mqtt.receive_message()
-    print (r)
     r = r.decode('utf-8')
     r = [int(bit) for bit in r] 
-    print (r)   
-    
+
     # Paso 3: fase de commitment
     vecE, vecB, seed = commitmentStage(r,b,n)
-    messageSB = [seed,vecB]
+    messageEB0 = [vecE,vecB]
+    messageSB = [seed,b]
     # Paso 4: envío de vectores generados
-    mqtt.connect()
-    mqtt.publish(ID_BOB,''.join(map(str, vecE)))
+    mqtt.publish(ID_BOB,''.join(map(str, messageEB0)))
+    print("Fase de commitment finalizada.")
+    time.sleep(5)
+    print("Fase de verificación iniciada.")
     mqtt.publish(ID_BOB,''.join(map(str, messageSB)))
+
+    verifyOk = mqtt.receive_message()
+    if (verifyOk=="Verificación correcta."):
+        print("Verificación correcta, finalizando programa...")
+        exit(-1)
+    elif (verifyOk=="Verificación incorrecta."):
+        print("Verificación incorrecta, finalizando programa...")
+        exit(-1)
+    #time.sleep(10)  # Espera adicional para asegurar que los mensajes se envíen
+    #mqtt.loop_stop()  # Parar el bucle MQTT y terminar el programa
+
 
     

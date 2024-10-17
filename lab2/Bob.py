@@ -53,14 +53,11 @@ def blum_micali(s):
     r = []
     s = int(s)
     for i in range(n): #??
-        if s <= (p-1/2):
+        if s <= (p-1)/2:
             r.append(1)
-            print("1")
-        elif s > (p-1/2):
+        elif s > (p-1)/2:
             r.append(0)
-            print("0")
 
-        print("llego")
         #s = g**s % p  
         s = pow(g, s, p) 
         
@@ -71,10 +68,10 @@ def blum_micali(s):
 def Grs(Gs,r):
     return [Gs[i] for i in range(len(r)) if r[i] == 1]
 
-def proveAndVerify(s,r,eRecibida, bitsRecibidos):
+def proveAndVerify(s,r,eRecibida, bitsOG, bitsR0):
 
     # Paso 1: Cálculo de c'
-    cprima = generarVectorC(bitsRecibidos)
+    cprima = generarVectorC(bitsOG)
 
     # Paso 2: generación de PRG
     Gs = blum_micali(s)
@@ -86,7 +83,7 @@ def proveAndVerify(s,r,eRecibida, bitsRecibidos):
       if r[i] == 0:
           bitsr0BOB.append(Gs[i])
 
-    if not np.array_equal(bitsRecibidos,bitsr0BOB):
+    if not np.array_equal(bitsR0,bitsr0BOB):
         return False
 
     # Paso 4: verificación de e    falla????? tienen diferentes longitudes
@@ -106,16 +103,15 @@ if __name__ == "__main__":
     time.sleep(2)
     # Paso 1: Generación de bits de vector r
     vecR = generarVectorR(q)
-
-    print(vecR)
     
     # Paso 2: envío de bits a Alice
     mqtt.publish_message(ID_ALICE, ''.join(str(bit) for bit in vecR))
-    print("ENVÍO")
-    
+    print("Esperando mensaje de Alice...")
     # Paso 3: recepción de mensaje de Alice que incluye (s,b)
-    messageE = mqtt.receive_message()
+   # messageE = mqtt.receive_message()
+    messageEB0 = mqtt.receive_message()
     messageSB = mqtt.receive_message()
+    #print(messageE)
     #msg.payload
     #seed = messageSB[:n]
     #bitSeq = messageSB[n:]
@@ -125,14 +121,27 @@ if __name__ == "__main__":
     seed = messageSB_str[:indexMessage]  
     bitSeq = messageSB_str[indexMessage:]  
     bitSeq = [int(x) for x in bitSeq.strip('[]').split(',')]
-    
-    messageE = messageE.decode('ascii') 
-    messageE = [int(x) for x in messageE.strip('[]').split(',')]
 
-    verifyOk = proveAndVerify(seed, vecR, messageE, bitSeq)
+    messageEB0 = messageEB0.decode('utf-8')         # Usar el carácter "[" para separar los vectores
+    separated_vectors = messageEB0.split("[")
+
+    # Separa los vectores y limpia los corchetes "]" de los datos
+    vector1_str = separated_vectors[1].replace(']', '')  # Primer vector
+    vector2_str = separated_vectors[2].replace(']', '')  # Segundo vector
+    vector1 = list(map(int, vector1_str.split(',')))
+    vector2 = list(map(int, vector2_str.split(',')))    
+    #messageE = [int(x) for x in messageEB0.strip('[]').split(',')]
+    
+
+    verifyOk = proveAndVerify(seed, vecR, vector1, bitSeq, vector2)
+
+    
+    if verifyOk==True:
+        mqtt.publish(ID_ALICE,"Verificación correcta.")
+    elif verifyOk==False:
+        mqtt.publish(ID_ALICE,"Verificación incorrecta.")
 
     print("Verificación:", "Correcta" if verifyOk else "Incorrecta")
-
 
 
     
