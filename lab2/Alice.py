@@ -61,6 +61,7 @@ def xor_vectors(v1, v2):
 
 if __name__ == "__main__":
     print("¡Bienvenida Alice!")
+    entrada = int(input("Introduce 1 si quieres hacer trampa: "))
     
     mqtt: MQTT = MQTT(ID_ALICE)
     mqtt.connect()
@@ -77,7 +78,11 @@ if __name__ == "__main__":
     # Paso 3: fase de commitment
     vecE, vecB, seed = commitmentStage(r,b,n)
     messageEB0 = [vecE,vecB]
-    messageSB = [seed,b]
+
+    if(entrada == 1):
+        random.shuffle(b)
+
+    messageSB = [seed,b]  
     # Paso 4: envío de vectores generados
     mqtt.publish(ID_BOB,''.join(map(str, messageEB0)))
     print("Fase de commitment finalizada.")

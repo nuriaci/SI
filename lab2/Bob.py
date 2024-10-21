@@ -28,7 +28,7 @@ def generarVectorR(q):
     return r
 
 def obtenerB(b0,b1):
-    b = b0 ^ b1;
+    b = b0 ^ b1
     return b
 
 def xor_vectors(v1, v2):
