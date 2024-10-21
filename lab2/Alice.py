@@ -18,12 +18,11 @@ def blum_micali(s):
     p = 2011
     g = 564
     r = []
-    for i in range(n): #??
+    for i in range(n): 
         if s <= (p-1)/2:
             r.append(1)
         elif s > (p-1)/2:
-            r.append(0)
-        #s = g**s % p  
+            r.append(0) 
         s = pow(g, s, p) 
         
     print(f"Último valor de la semilla: {s}")
@@ -62,6 +61,7 @@ def xor_vectors(v1, v2):
 
 if __name__ == "__main__":
     print("¡Bienvenida Alice!")
+    entrada = int(input("Introduce 1 si quieres hacer trampa: "))
     
     mqtt: MQTT = MQTT(ID_ALICE)
     mqtt.connect()
@@ -78,7 +78,11 @@ if __name__ == "__main__":
     # Paso 3: fase de commitment
     vecE, vecB, seed = commitmentStage(r,b,n)
     messageEB0 = [vecE,vecB]
-    messageSB = [seed,b]
+
+    if(entrada == 1):
+        random.shuffle(b)
+
+    messageSB = [seed,b]  
     # Paso 4: envío de vectores generados
     mqtt.publish(ID_BOB,''.join(map(str, messageEB0)))
     print("Fase de commitment finalizada.")
@@ -93,8 +97,6 @@ if __name__ == "__main__":
     elif (verifyOk=="Verificación incorrecta."):
         print("Verificación incorrecta, finalizando programa...")
         exit(-1)
-    #time.sleep(10)  # Espera adicional para asegurar que los mensajes se envíen
-    #mqtt.loop_stop()  # Parar el bucle MQTT y terminar el programa
 
 
     

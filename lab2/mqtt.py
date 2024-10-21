@@ -52,4 +52,3 @@ class MQTT(Client):
 
     def publish_message(self, topic, payload):
         self.publish(topic, payload)
-        #print(f"Published message to topic {topic}: {payload}")

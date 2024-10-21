@@ -13,17 +13,6 @@ def generarBitAleatorio():
     b0 = random.getrandbits(1)
     print("Bob ha generado un bit {b0}.")
     return b0
-"""
-# Generación de compromiso
-def commitment (Gs,r,b0):
-    #Gs = generarS(s)
-    if b0 == 0:
-        c = Gs
-    elif b0 == 1:
-        c = Gs ^ r
-
-    return c
-"""
 
 def generarVectorC (r):
     return r*3
@@ -36,11 +25,10 @@ def generarVectorR(q):
     ones_indices = np.random.choice(2 * q, q, replace=False)
     r[ones_indices] = 1
 
-    #return r.tobytes()
     return r
 
 def obtenerB(b0,b1):
-    b = b0 ^ b1;
+    b = b0 ^ b1
     return b
 
 def xor_vectors(v1, v2):
@@ -52,13 +40,12 @@ def blum_micali(s):
     g = 564
     r = []
     s = int(s)
-    for i in range(n): #??
+    for i in range(n): 
         if s <= (p-1)/2:
             r.append(1)
         elif s > (p-1)/2:
             r.append(0)
 
-        #s = g**s % p  
         s = pow(g, s, p) 
         
     print(f"Semilla: {s}")
@@ -86,7 +73,7 @@ def proveAndVerify(s,r,eRecibida, bitsOG, bitsR0):
     if not np.array_equal(bitsR0,bitsr0BOB):
         return False
 
-    # Paso 4: verificación de e    falla????? tienen diferentes longitudes
+    # Paso 4: verificación de e   
     e = xor_vectors(cprima,Grsub)
 
     if not np.array_equal(eRecibida, e):
@@ -108,13 +95,8 @@ if __name__ == "__main__":
     mqtt.publish_message(ID_ALICE, ''.join(str(bit) for bit in vecR))
     print("Esperando mensaje de Alice...")
     # Paso 3: recepción de mensaje de Alice que incluye (s,b)
-   # messageE = mqtt.receive_message()
     messageEB0 = mqtt.receive_message()
     messageSB = mqtt.receive_message()
-    #print(messageE)
-    #msg.payload
-    #seed = messageSB[:n]
-    #bitSeq = messageSB[n:]
     
     messageSB_str = messageSB.decode('utf-8')
     indexMessage = messageSB_str.index('[')
@@ -130,7 +112,6 @@ if __name__ == "__main__":
     vector2_str = separated_vectors[2].replace(']', '')  # Segundo vector
     vector1 = list(map(int, vector1_str.split(',')))
     vector2 = list(map(int, vector2_str.split(',')))    
-    #messageE = [int(x) for x in messageEB0.strip('[]').split(',')]
     
 
     verifyOk = proveAndVerify(seed, vecR, vector1, bitSeq, vector2)
