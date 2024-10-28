@@ -129,8 +129,29 @@ def encryptionProcedure(niveles, arbol, conjuntoRev, contenido):
     bloques = split_into_blocks(archivo_contenido)
     for bloque in bloques:
         iv, cifrado = encrypt(k, bloque)
+        print(iv,cifrado)
         archivo_cifrado += iv + cifrado
     return {"claves_cifradas": c_keys, "contenido_cifrado": (iv, archivo_cifrado)}
+
+def decryptionProcedure(contenido_cifrado, c_keys, k):
+    """Desencripta el contenido y las claves usando las claves cifradas y la clave k."""
+    bloques_cifrados = []
+    offset = 0
+    
+    # Desencriptar el contenido cifrado
+    while offset < len(contenido_cifrado):
+        iv = contenido_cifrado[offset:offset + 16]  # Obtener el IV (primer bloque de 16 bytes)
+        offset += 16
+        ciphertext = contenido_cifrado[offset:offset + 16]  # Obtener el ciphertext (bloque siguiente de 16 bytes)
+        offset += 16
+        
+        # Desencriptar el bloque
+        decrypted_block = decrypt(k, iv, ciphertext)
+        bloques_cifrados.append(decrypted_block)
+    
+    # Unir los bloques en el contenido final
+    return b''.join(bloques_cifrados)
+
 
 if __name__ == "__main__":
     niveles = int(input("Introduce el número de niveles: "))
@@ -146,5 +167,18 @@ if __name__ == "__main__":
     res = encryptionProcedure(niveles,arbol,conjuntoRev,file)
     imprimirArbol(arbol)
 
-    print("Claves cifradas:", res["claves_cifradas"])
-    print("Contenido cifrado:", res["contenido_cifrado"])
+    #print("Claves cifradas:", res["claves_cifradas"])
+    #print("Contenido cifrado:", res["contenido_cifrado"])
+
+    # Proceso de desencriptado
+    clave_des_encriptada = res["claves_cifradas"].values()  # Obtener todas las claves cifradas
+    # Asumiendo que solo hay una clave en la lista para simplificar
+    # En un caso real, deberías determinar cuál clave usar
+    k = next(iter(clave_des_encriptada))[1]  # Obtener la clave cifrada de la primera entrada
+    contenido_descifrado = decryptionProcedure(res["contenido_cifrado"], res["claves_cifradas"], k)
+
+    # Guardar contenido descifrado en un nuevo archivo
+    with open("contenido_descifrado.jpg", "wb") as file:
+        file.write(contenido_descifrado)
+
+   
