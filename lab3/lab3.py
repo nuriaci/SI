@@ -1,4 +1,5 @@
 import os
+import math
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import (
     Cipher, algorithms, modes
@@ -7,16 +8,33 @@ from cryptography.hazmat.primitives.ciphers import (
 from Nodo import *
 
 
-def crearArbol(t):
-    if (t == 0):
-        return None
+def crearArbol(dispositivos):
+    nodos = []
     
-    k = os.urandom(16) 
-    i = 0
-    root = Nodo(f"k{i}", k)
-    rellenarArbol(root, 0, t, i)
-
-    return root
+    # Paso 1: Crear los nodos hoja (de 1 a dispositivos)
+    for i in range(1, dispositivos + 1):
+        clave = os.urandom(16)  # Generar una clave aleatoria
+        nodos.append(Nodo(f"Nodo {i}", clave))  # Agregar un nodo hoja
+    
+    # Paso 2: Crear nodos padres
+    index = dispositivos + 1  # Empezamos a contar los nodos padres desde dispositivos + 1
+    while len(nodos) > 1:
+        nuevos_nodos = []
+        
+        for i in range(0, len(nodos), 2):
+            # Crear un nuevo nodo padre que tiene como hijos los nodos i y i+1
+            if i + 1 < len(nodos):  # Asegurarse de que hay un par
+                clave_padre = os.urandom(16)  # Clave aleatoria para el nodo padre
+                padre = Nodo(f"Nodo {index}", clave_padre)
+                padre.hijoIzq = nodos[i]      # Asignar hijo izquierdo
+                padre.hijoDer = nodos[i + 1]  # Asignar hijo derecho
+                nuevos_nodos.append(padre)    # Agregar nodo padre a la lista de nuevos nodos
+                index += 1  # Incrementar el índice para el siguiente padre
+        
+        nodos = nuevos_nodos  # Reemplazar la lista de nodos con los nuevos nodos creados
+    
+    # La raíz del árbol es el único nodo que queda
+    return nodos[0]  # Devolver la raíz del árbol
 
 def rellenarArbol(nodo, nivelActual, niveles,i):
     if nivelActual < niveles:
@@ -70,12 +88,29 @@ def get_parent_index(index):
 def get_sibling_index(index):
     return index - 1 if index % 2 == 0 else index + 1
 
+def getConjuntoCobertura(conjuntoRev):
+    conjuntoCob = set()
 
-def getConjuntoCobertura(niveles,conjuntoRev):
+    # Revisamos cada nodo en el conjunto de revocación
+    for nodo in conjuntoRev:
+        if nodo > 0:  # Asegurarse de que no sea el nodo raíz
+            padre = get_parent_index(nodo)
+            if padre is not None:
+                conjuntoCob.add(padre)  # Agregar al padre
+
+            # Agregar al hermano si existe
+            hermano = get_sibling_index(nodo)
+            if hermano != nodo:  # Si no es el mismo nodo
+                conjuntoCob.add(hermano)
+
+    return conjuntoCob
+
+
+def getConjuntoCoberturaNoSeUsa(dispositivos,conjuntoRev):
     conjuntoCob = set()
     #Recorrido hojas
-    for nodo in range(2 ** niveles, 2 ** (niveles + 1)):
-        disp = nodo - (2 ** niveles) + 1
+    for nodo in range(2 ** dispositivos, 2 ** (dispositivos + 1)):
+        disp = nodo - (2 ** dispositivos) + 1
         if disp not in conjuntoRev:
             path = nodo
             while path > 1:
@@ -110,11 +145,11 @@ def split_into_blocks(data):
     
     return blocks
 
-def encryptionProcedure(niveles, arbol, conjuntoRev, contenido):
+def encryptionProcedure(dispositivos, arbol, conjuntoRev, contenido):
     # Paso 1: generación de una clave aleatoria k
     k = os.urandom(16)
     # Paso 2: para cada nodo de S, computar c = (kroot, k)
-    conjuntoCob = getConjuntoCobertura(niveles,conjuntoRev)
+    conjuntoCob = getConjuntoCobertura(dispositivos,conjuntoRev)
     print("Conjunto de cobertura:", conjuntoCob)
     
     # Cifrar la clave con cada nodo en el conjunto de cobertura
@@ -129,56 +164,78 @@ def encryptionProcedure(niveles, arbol, conjuntoRev, contenido):
     bloques = split_into_blocks(archivo_contenido)
     for bloque in bloques:
         iv, cifrado = encrypt(k, bloque)
-        print(iv,cifrado)
+        #print(f"IV: {iv}")
+        #print(f"Cifrado: {cifrado}")
         archivo_cifrado += iv + cifrado
     return {"claves_cifradas": c_keys, "contenido_cifrado": (iv, archivo_cifrado)}
 
-def decryptionProcedure(contenido_cifrado, c_keys, k):
-    """Desencripta el contenido y las claves usando las claves cifradas y la clave k."""
-    bloques_cifrados = []
-    offset = 0
-    
-    # Desencriptar el contenido cifrado
-    while offset < len(contenido_cifrado):
-        iv = contenido_cifrado[offset:offset + 16]  # Obtener el IV (primer bloque de 16 bytes)
-        offset += 16
-        ciphertext = contenido_cifrado[offset:offset + 16]  # Obtener el ciphertext (bloque siguiente de 16 bytes)
-        offset += 16
-        
-        # Desencriptar el bloque
-        decrypted_block = decrypt(k, iv, ciphertext)
-        bloques_cifrados.append(decrypted_block)
-    
-    # Unir los bloques en el contenido final
-    return b''.join(bloques_cifrados)
 
+def decryptionProcedure(contenido_cifrado, c_keys, k):
+    bloques_descifrados = []
+    offset = 0
+
+    while offset < len(contenido_cifrado):
+        iv = contenido_cifrado[offset:offset + 16]  # Obtener IV del bloque
+        offset += 16
+        ciphertext_block = contenido_cifrado[offset:offset + 16]  # Obtener bloque de cifrado
+        offset += 16
+
+        decrypted_block = decrypt(k, iv, ciphertext_block)
+        bloques_descifrados.append(decrypted_block)
+
+    plaintext = b''.join(bloques_descifrados)
+
+    # Remover el padding PKCS#7
+    padding_len = plaintext[-1]  # El último byte indica la longitud del padding
+    if padding_len < 1 or padding_len > 16:
+        raise ValueError("Padding inválido o corrupto.")
+    
+    return plaintext[:-padding_len]  # Retornar el contenido sin padding
+
+def comparar_imagenes(ruta_imagen1, ruta_imagen2):
+    with open(ruta_imagen1, "rb") as img1, open(ruta_imagen2, "rb") as img2:
+        contenido_img1 = img1.read()
+        contenido_img2 = img2.read()
+
+        if contenido_img1 == contenido_img2:
+            print("Las imágenes son idénticas.")
+            return True
+        else:
+            print("Las imágenes son diferentes.")
+            return False
+
+# Usar la función
 
 if __name__ == "__main__":
-    niveles = int(input("Introduce el número de niveles: "))
-    arbol = crearArbol(niveles)
+    dispositivos = int(input("Introduce el número de dispositivos (potencia de 2): "))
+    
+    # Verificar si el número de dispositivos es potencia de 2
+    if dispositivos & (dispositivos - 1) != 0:
+        print("El número de dispositivos debe ser una potencia de 2.")
+            
+    arbol = crearArbol(dispositivos)
  
-    file = input("Ingresa un archivo para cifrar (ingresa para omitir): ")
+    """ file = input("Ingresa un archivo para cifrar (ingresa para omitir): ")
     if file:
         file = f"C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/{file}"
     
     conjuntoRev_input = input("Introduce un nodo o conjunto de nodos a revocar: ")
     conjuntoRev = set(map(int, conjuntoRev_input.split(',')))
 
-    res = encryptionProcedure(niveles,arbol,conjuntoRev,file)
+    res = encryptionProcedure(dispositivos,arbol,conjuntoRev,file)"""
     imprimirArbol(arbol)
 
-    #print("Claves cifradas:", res["claves_cifradas"])
-    #print("Contenido cifrado:", res["contenido_cifrado"])
+    """clave_cifrada = next(iter(res["claves_cifradas"].values()))  # Obtener el primer par (IV, ciphertext)
+    iv_clave_cifrada, ciphertext_clave_cifrada = clave_cifrada
+    k = decrypt(arbol.clave, iv_clave_cifrada, ciphertext_clave_cifrada)  # Desencriptar la clave `k`
 
-    # Proceso de desencriptado
-    clave_des_encriptada = res["claves_cifradas"].values()  # Obtener todas las claves cifradas
-    # Asumiendo que solo hay una clave en la lista para simplificar
-    # En un caso real, deberías determinar cuál clave usar
-    k = next(iter(clave_des_encriptada))[1]  # Obtener la clave cifrada de la primera entrada
-    contenido_descifrado = decryptionProcedure(res["contenido_cifrado"], res["claves_cifradas"], k)
-
+    # Desencriptar el contenido usando `k`
+    contenido_descifrado = decryptionProcedure(res["contenido_cifrado"][1], res["claves_cifradas"], k)
     # Guardar contenido descifrado en un nuevo archivo
     with open("contenido_descifrado.jpg", "wb") as file:
+        print("Writing file...")
         file.write(contenido_descifrado)
+
+    comparar_imagenes("image.jpg", "contenido_descifrado.jpg")"""
 
    
