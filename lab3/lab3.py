@@ -85,17 +85,12 @@ def crearArbol(niveles):
             arbol[indice_hijo_der].padre = nodo_actual  # Asignamos al hijo su padre
     
     return arbol
-def revocar_nodos(conjunto_revocados, arbol):
-    """
-    Marca los nodos en el árbol como revocados y calcula el conjunto de cobertura.
-    
-    Args:
-        conjunto_revocados (set): Conjunto de índices de nodos a revocar.
-        arbol (list): Lista que representa el árbol de nodos.
 
-    Returns:
-        conjunto_cobertura (set): Conjunto de nodos que cubren todos los nodos no revocados.
-    """
+##########################################################################
+#                         REVOCACIÓN DE NODOS                            #
+##########################################################################
+
+def revocar_nodos(conjunto_revocados, arbol):
     conjunto_revocacion = set()
     
     # Paso 1: Agregar todos los nodos a revocar y sus ancestros
@@ -110,6 +105,9 @@ def revocar_nodos(conjunto_revocados, arbol):
     
     return conjunto_cobertura
 
+##########################################################################
+#                  CÁLCULO DEL CONJUNTO DE COBERTURA                     #
+##########################################################################
 
 def calcular_conjunto_cobertura(conjunto_revocacion, arbol):
     conjunto_cobertura = set()
@@ -193,6 +191,14 @@ def imprimirArbol(nodo):
         imprimirArbol(nodo.hijoIzq)
         imprimirArbol(nodo.hijoDer)
 
+def imprimir_nodos_hoja(arbol, conjunto_revocados):
+    print("Nodos hoja disponibles (sin revocar):")
+    
+    for nodo in arbol:
+        # Verificamos que el nodo sea hoja (sin hijos) y que no esté revocado
+        if nodo.hijoIzq is None and nodo.hijoDer is None and nodo.numero not in conjunto_revocados:
+            # Imprimimos el nodo solo si es hoja y no está revocado
+            print(f"- Nodo {nodo.numero}")
 
 
 
@@ -298,13 +304,12 @@ def getConjuntoCoberturaNoSeUsa(dispositivos,conjuntoRev):
                 path = get_parent_index(path)
 
     return conjuntoCob
-
-def pad_block(block):
+"""
+def pad_block(data, blockSize):
     # Applies PKCS#7 padding to a single block.
-    block_size = 16
-    padding_len = block_size - len(block)
-    padding = bytes([padding_len] * padding_len)
-    return block + padding
+    padding_len = blockSize - (len(data) % blockSize)
+    padding = bytes([padding_len] * padding_len)  # Genera padding con el byte de padding_len
+    return data + padding
 
 def split_into_blocks(data):
     # Splits data into 16-byte blocks with padding for the last block if necessary.
@@ -315,31 +320,37 @@ def split_into_blocks(data):
     for i in range(0, len(data), block_size):
         block = data[i:i + block_size]
         if len(block) < block_size:
-            block = pad_block(block)  # Add padding if block is smaller than 16 bytes
+            block = pad_block(block, block_size)  # Add padding if block is smaller than 16 bytes
         blocks.append(block)
     
     return blocks
 
-def encryptionProcedure(dispositivos, arbol, conjuntoRev, contenido):
+def encryptionProcedure(arbol, conjuntoCobertura, contenido):
+
+    # Paso 1: generar una clave aleatoria para cifrar el archivo
     k = os.urandom(16)
-    conjuntoCob = calcular_conjunto_cobertura(dispositivos, conjuntoRev)
-    
-    print("Conjunto de cobertura:", conjuntoCob)
-    
-    c_keys = {}
-    for nodo in conjuntoCob:
-        c_keys[f"k{nodo}"] = encrypt(arbol.clave, k)
-    
+
+    # Paso 2: crear diccionario de claves
+    clavesCifradas = {}
+
+    # Paso 3: cifrar la clave del contenido con la clave de cada uno de los nodos en el conjunto de cobertura
+    for nodo in conjuntoCobertura:
+        iv, cifrado = encrypt(nodo.clave, k) 
+        clavesCifradas[f"nodo_{nodo.numero}"] = (iv, cifrado) 
+
+    # Paso 4: leer el archivo y dividir el contenido en bloques
     with open(contenido, "rb") as file:
-        archivo_contenido = file.read()
+        contenidoArchivo = file.read()
+    contenidoBloques = split_into_blocks(contenidoArchivo)
     
-    archivo_cifrado = b''
-    bloques = split_into_blocks(archivo_contenido)
-    for bloque in bloques:
+    archivoCifrado = b''
+    # Paso 5: cifrar cada bloque con la clave k del archivo
+    for bloque in contenidoBloques:
         iv, cifrado = encrypt(k, bloque)
-        archivo_cifrado += iv + cifrado
-    
-    return {"claves_cifradas": c_keys, "contenido_cifrado": (iv, archivo_cifrado)}
+        archivoCifrado += iv + cifrado
+
+    # Paso 6: retornar las claves 
+    return {"claves_cifradas": clavesCifradas, "contenido_cifrado": (iv, archivoCifrado)}
 
 
 def decryptionProcedure(contenido_cifrado, c_keys, k):
@@ -378,7 +389,7 @@ def comparar_imagenes(ruta_imagen1, ruta_imagen2):
             return True
         else:
             print("Las imágenes son diferentes.")
-            return False"""
+            return False
 
 # Usar la función
 
@@ -396,34 +407,31 @@ if __name__ == "__main__":
     # Mostrar la estructura del árbol
     for nodo in arbol:
         print(f"Nodo {nodo.numero}:")
-        print(f"  Clave: {nodo.clave.hex()}")
         print(f"  Padre: {nodo.padre.numero if nodo.padre else None}")
-        print(f"  Hijo Izq: {nodo.hijoIzq.numero if nodo.hijoIzq else None}")
-        print(f"  Hijo Der: {nodo.hijoDer.numero if nodo.hijoDer else None}")
+        print(f"  Hijos: {nodo.hijoIzq.numero if nodo.hijoIzq else None}, {nodo.hijoDer.numero if nodo.hijoDer else None}")
         print("-" * 30)
 
     conjuntoRev_input = input("Introduce un dispositivo o dispositivos a revocar: ")
     conjunto_revocados = obtener_nodos_revocados(conjuntoRev_input)
     conjunto_cobertura = revocar_nodos(conjunto_revocados, arbol)
-    conjunto_cobertura.sort(reverse=True)
-     # Imprimir el conjunto de cobertura
+    
+    # Imprimir el conjunto de cobertura
     print("Conjunto de cobertura para proteger los dispositivos no revocados:")
     for nodo in conjunto_cobertura:
-        print(f"Nodo {nodo.numero}, Clave: {nodo.clave.hex()}")
-    # # Creamos el árbol con n-1 nodos        
-    # # arbol = crearArbol(dispositivos)
+        print(f"- Nodo {nodo.numero}")
  
-    # file = input("Ingresa un archivo para cifrar (ingresa para omitir): ")
-    # if file:
-    #     file = os.path.join(os.getcwd(), "image.jpg")#f"C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/{file}"
+    file = input("Ingresa un archivo para cifrar (ingresa para omitir): ")
+    if file:
+        file = os.path.join(os.getcwd(), "image.jpg")#f"C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/{file}"
     
-    # 
-    # conjuntoRev = revocacionNodos(conjuntoRev_input, arbol)
-    # for nodo in conjuntoRev:
-    #  print(nodo.nombre)  # Accede al atributo 'nombre' de cada nodo
-
-    # res = encryptionProcedure(dispositivos,arbol,conjuntoRev,file)
+    # Encriptación del contenido del fichero con los nodos del conjunto de cobertura
+    res = encryptionProcedure(arbol,conjunto_cobertura,file)
     # imprimirArbol(arbol)
+
+    # Pregunta al usuario qué dispositivo quiere que sea el destinatario (debe ser un nodo hoja)
+    print("Listado de nodos hoja: ")
+    imprimir_nodos_hoja(arbol, conjunto_revocados)
+    nodoDest = int(input("¿Qué dispositivo quieres que reciba el mensaje?"))
 
     # clave_cifrada = next(iter(res["claves_cifradas"].values()))  # Obtener el primer par (IV, ciphertext)
     # iv_clave_cifrada, ciphertext_clave_cifrada = clave_cifrada
