@@ -21,7 +21,7 @@ class Nodo:
 
 
 ##########################################################################
-#                  ENCRIPTACIÓN Y DESENCRIPTACIÓN                        #
+#                 ENCRIPTACIÓN Y DESENCRIPTACIÓN SIMPLE                  #
 ##########################################################################
 
 def encrypt(key, plaintext):
@@ -238,83 +238,84 @@ def encryptionProcedure(conjuntoCobertura, contenido):
 #                      PROCESO DE DESENCRIPTACIÓN                        #
 ##########################################################################
 
-def decryptionProcedure(arbol, contenido_cifrado, c_keys, nodoDest, conjuntoCobertura):
-    # Paso 1: Buscar el nodo correspondiente a nodoDest en el árbol
-    nodoDest_obj = None
+# Buscar el nodo correspondiente al nodoDestino
+def buscarNodoDestino(arbol, nodoDest):
     for nodo in arbol:
         if nodo.numero == nodoDest:
-            nodoDest_obj = nodo
-            break
+            return nodo
+    raise ValueError(f"Nodo destino {nodoDest} no encontrado en el árbol")
 
-    if nodoDest_obj is None:
-        raise ValueError(f"Nodo destino {nodoDest} no encontrado en el árbol")
+# Desencriptar la clave cifrada con la clave del nodo
+def desencriptarClave(nodo, c_keys):
+    kCifrada = c_keys.get(f"nodo_{nodo.numero}")
+    if not kCifrada:
+        raise ValueError(f"No se encontró la clave cifrada para el nodo {nodo.numero}")
+
+    iv_clave_cifrada, ciphertext_clave_cifrada = kCifrada
+    # Desencriptar con la clave del nodo
+    return decrypt(nodo.clave, iv_clave_cifrada, ciphertext_clave_cifrada)
+
+# Buscar el nodo de cobertura más cercano en el árbol
+def buscarNodoCobertura(nodoDest_obj, conjuntoCobertura):
+    print("Buscando el nodo de cobertura más cercano...")
+    nodo_actual = nodoDest_obj
     
-    # Paso 2: Si el nodo destino está en el conjunto de cobertura, desencriptamos con su clave
-    if nodoDest_obj in conjuntoCobertura:
-        print("Desencriptando con el nodo destino...")
-        kCifrada = c_keys.get(f"nodo_{nodoDest_obj.numero}")
-        if not kCifrada:
-            raise ValueError(f"No se encontró la clave cifrada para el nodo {nodoDest_obj.numero}")
-        
-        iv_clave_cifrada, ciphertext_clave_cifrada = kCifrada
-        # Desencriptar con la clave del nodo destino
-        k = decrypt(nodoDest_obj.clave, iv_clave_cifrada, ciphertext_clave_cifrada)
-        
-    else:
-        # Paso 3: Si el nodo destino no está en el conjunto de cobertura, buscamos el nodo de cobertura más cercano
-        print("Buscando el nodo de cobertura más cercano...")
-        nodo_actual = nodoDest_obj
-        
-        # Subimos en el árbol hasta encontrar un nodo que esté en el conjunto de cobertura
-        while nodo_actual is not None:
-            # Si encontramos un nodo en el conjunto de cobertura, lo seleccionamos
-            if nodo_actual in conjuntoCobertura:
-                print(f"Encontramos el nodo de cobertura: {nodo_actual.numero}")
-                break
-
-            # Si no está en el conjunto de cobertura, subimos al padre
-            nodo_actual = nodo_actual.padre
-        
-        # Si hemos encontrado un nodo en el conjunto de cobertura
+    # Subimos en el árbol hasta encontrar un nodo en el conjunto de cobertura
+    while nodo_actual is not None:
         if nodo_actual in conjuntoCobertura:
-            kCifrada = c_keys.get(f"nodo_{nodo_actual.numero}")
-            if not kCifrada:
-                raise ValueError(f"No se encontró la clave cifrada para el nodo {nodo_actual.numero}")
-            
-            iv_clave_cifrada, ciphertext_clave_cifrada = kCifrada
-            # Desencriptar con la clave del nodo relacionado
-            k = decrypt(nodo_actual.clave, iv_clave_cifrada, ciphertext_clave_cifrada)
-            
-        else:
-            raise ValueError("No se encontró un nodo de cobertura al subir por el árbol.")
+            print(f"Encontramos el nodo de cobertura: {nodo_actual.numero}")
+            return nodo_actual
+        nodo_actual = nodo_actual.padre
     
-    # Paso 4: Desencriptar el contenido cifrado utilizando la clave 'k' obtenida
-    print("Desencriptando el contenido cifrado...")
+    raise ValueError("No se encontró un nodo de cobertura al subir por el árbol.")
 
-    # El contenido cifrado está en la forma: iv + datos_cifrados por cada bloque
+# Desencriptar los bloques de contenido
+def desencriptarContenido(contenido_cifrado, k):
+    print("Desencriptando el contenido cifrado...")
     contenido_descifrado = b''
 
     # Recorremos el contenido cifrado en bloques de 32 bytes (16 bytes IV + 16 bytes de datos cifrados)
-    for i in range(0, len(contenido_cifrado), 32):  # Cada bloque tiene 16 bytes de IV + 16 bytes de datos cifrados
+    for i in range(0, len(contenido_cifrado), 32):
         iv = contenido_cifrado[i:i+16]  # IV
         ciphertext = contenido_cifrado[i+16:i+32]  # Datos cifrados
 
-        # Desencriptar cada bloque con la clave 'k'
-        bloque_descifrado = decrypt(k,iv,ciphertext)
+        # Desencriptamos cada bloque con la clave 'k'
+        bloque_descifrado = decrypt(k, iv, ciphertext)
 
         # Añadimos el bloque descifrado al contenido final
         contenido_descifrado += bloque_descifrado
 
-    # Después de desencriptar, es posible que el contenido esté relleno (padding)
-    # Debemos eliminar el relleno, por ejemplo, con PKCS7
-    unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-    contenido_descifrado = unpadder.update(contenido_descifrado) + unpadder.finalize()
-
     return contenido_descifrado
+
+# Eliminar el relleno del contenido (PKCS#7)
+def eliminarRelleno(contenido_descifrado):
+    unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+    return unpadder.update(contenido_descifrado) + unpadder.finalize()
+
+# Función principal para desencriptar
+def decryptionProcedure(arbol, contenido_cifrado, c_keys, nodoDest, conjuntoCobertura):
+    # Paso 1: Buscar el nodo destino
+    nodoDest_obj = buscarNodoDestino(arbol, nodoDest)
+
+    # Paso 2: Desencriptar la clave con el nodo correspondiente
+    if nodoDest_obj in conjuntoCobertura:
+        print("Desencriptando con el nodo destino...")
+        k = desencriptarClave(nodoDest_obj, c_keys)
+    else:
+        # Paso 3: Buscar el nodo de cobertura más cercano
+        nodo_cobertura = buscarNodoCobertura(nodoDest_obj, conjuntoCobertura)
+        k = desencriptarClave(nodo_cobertura, c_keys)
+    
+    # Paso 4: Desencriptar el contenido cifrado con la clave 'k'
+    contenido_descifrado = desencriptarContenido(contenido_cifrado, k)
+    
+    # Paso 5: Eliminar el relleno del contenido descifrado
+    return eliminarRelleno(contenido_descifrado)
 
 ##########################################################################
 #                        COMPARACIÓN DE IMÁGENES                         #
 ##########################################################################
+
 def comparar_imagenes(ruta_imagen1, ruta_imagen2):
     with open(ruta_imagen1, "rb") as img1, open(ruta_imagen2, "rb") as img2:
         contenido_img1 = img1.read()
@@ -375,12 +376,6 @@ if __name__ == "__main__":
     print("Listado de nodos hoja: ")
     imprimir_nodos_hoja(arbol, conjunto_revocados)
     nodoDest = int(input("¿Qué dispositivo quieres que reciba el mensaje?"))
-
-    """clave_cifrada = next(iter(res["claves_cifradas"].values()))  # Obtener el primer par (IV, ciphertext)
-    iv_clave_cifrada, ciphertext_clave_cifrada = clave_cifrada
-    #??
-    nodo_destino = arbol[nodoDest - 1]  # Obtiene el nodo destinatario específico
-    k = decrypt(nodo_destino.clave, iv_clave_cifrada, ciphertext_clave_cifrada)  # Desencriptar la clave `k`"""
 
     # Desencriptar el contenido usando `k`
     contenido_descifrado = decryptionProcedure(arbol, res["contenido_cifrado"][1], res["claves_cifradas"], nodoDest, conjunto_cobertura)
