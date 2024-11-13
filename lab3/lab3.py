@@ -4,7 +4,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import (
     Cipher, algorithms, modes
 )
-
+from cryptography.hazmat.primitives import padding
 from Nodo import *
 
 ##########################################################################
@@ -143,20 +143,11 @@ def calcular_conjunto_cobertura(conjunto_revocacion, arbol):
 
     return conjunto_cobertura
 
-
-
+##########################################################################
+#                      OBTENCIÓN DE NODOS REVOCADOS                      #
+##########################################################################
 
 def obtener_nodos_revocados(input_usuario):
-    """
-    Convierte la entrada del usuario en un conjunto de nodos a revocar.
-    
-    Args:
-        input_usuario (str): Entrada del usuario, que puede ser una lista de números separados por comas,
-                             un solo número o una cadena vacía.
-                             
-    Returns:
-        set: Un conjunto de enteros representando los nodos a revocar.
-    """
     # Si la entrada está vacía, devolver un conjunto vacío
     if not input_usuario.strip():
         return set()
@@ -169,21 +160,9 @@ def obtener_nodos_revocados(input_usuario):
         print("Entrada inválida. Asegúrate de introducir solo números separados por comas.")
         return set()
 
-
-"""def rellenarArbol(nodo, nivelActual, niveles,i):
-    if nivelActual < niveles:
-        indiceNodoIzq = 2*i + 1;
-        indiceNodoDer = 2*i + 2;
-        
-        k1 = os.urandom(16) 
-        k2 = os.urandom(16) 
-
-        nodo.hijoIzq = Nodo(f"k{indiceNodoIzq}",k1)
-        nodo.hijoDer = Nodo(f"k{indiceNodoDer}",k2)
-
-        rellenarArbol(nodo.hijoIzq, nivelActual + 1, niveles, indiceNodoIzq)
-        rellenarArbol(nodo.hijoDer, nivelActual + 1, niveles, indiceNodoDer)"""
-
+##########################################################################
+#                      IMPRESIÓN DE ÁRBOL Y HOJAS                        #
+##########################################################################
 
 def imprimirArbol(nodo):
     if nodo is not None:
@@ -200,111 +179,10 @@ def imprimir_nodos_hoja(arbol, conjunto_revocados):
             # Imprimimos el nodo solo si es hoja y no está revocado
             print(f"- Nodo {nodo.numero}")
 
+##########################################################################
+#                     DIVISIÓN EN BLOQUES Y PADDING                      #
+##########################################################################
 
-
-"""def get_parent_index(index):
-    return index // 2 if index > 0 else None
-
-def get_sibling_index(index):
-    return index - 1 if index % 2 == 0 else index + 1
-
-def calcular_conjunto_cobertura(dispositivos, S):
-
-    Calcula el conjunto de cobertura para el conjunto S en un árbol binario.
-    dispositivos: número total de dispositivos (nodos en el árbol).
-    S: conjunto de nodos a considerar (debe ser un conjunto o lista de nodos, con nombres como cadenas).
-
-    conjunto_cobertura = set()
-
-    # Verificamos que S sea un iterable y convertimos a conjunto si es un solo string
-    if isinstance(S, str):
-        S = {S}  # Si S es un solo string, lo convertimos en un conjunto
-
-    # Para cada nodo en S, encontrar su camino hacia la raíz
-    for nombre in S:
-        path = find_path_to_root_by_name(nombre)
-        
-        # Para cada nodo en el camino (excepto la raíz), ver si su hermano está en S
-        for i in range(len(path) - 1, 0, -1):
-            nodo_actual = path[i]
-            nodo_padre = path[i - 1]
-            if nodo_actual not in S:  # Si el nodo actual no está en S
-                hermano = sibling_by_name(nodo_actual.nombre)  # Encontramos el hermano
-                if hermano not in S:  # Si el hermano no está en S, lo agregamos a la cobertura
-                    conjunto_cobertura.add(hermano.nombre)
-    
-    return conjunto_cobertura
-
-
-
-# Función para encontrar el camino hacia la raíz por nombre de nodo
-def find_path_to_root_by_name(nodo):
-    path = [nodo]
-    while nodo != "Nodo 1":  # Suponemos que "Nodo 1" es la raíz
-        nodo = get_parent_name(nodo)  # Esta función debe devolver el nombre del nodo padre
-        path.insert(0, nodo)
-    return path
-
-# Función para encontrar el hermano de un nodo dado su nombre
-def sibling_by_name(nodo):
-    # Suponemos que los hermanos se numeran de forma consecutiva
-    # Ejemplo: Nodo 2 es hermano de Nodo 3, Nodo 4 es hermano de Nodo 5, etc.
-    nodo_num = int(nodo.nombre.split()[-1])  # Extraemos el número del nodo (por ejemplo, "Nodo 2" -> 2)
-    hermano_num = nodo_num + 1 if nodo_num % 2 == 0 else nodo_num - 1  # Los hermanos están a +1 o -1
-    return f"Nodo {hermano_num}"
-
-# Función para obtener el nombre del nodo padre, dado su nombre
-def get_parent_name(nodo):
-    nodo_num = int(nodo.nombre.split()[-1])  # Extraemos el número del nodo
-    parent_num = nodo_num // 2  # El nodo padre está en la posición nodo_num // 2
-    return f"Nodo {parent_num}"
-
-def getConjuntoCobertura(dispositivos, conjuntoRev):
-    conjuntoCob = set()
-    hojas = range(2 ** (dispositivos.bit_length() - 1), 2 ** dispositivos.bit_length())  # Rango de nodos hoja
-    
-    for hoja in hojas:
-        dispositivo = hoja - (2 ** (dispositivos.bit_length() - 1)) + 1
-        if dispositivo not in conjuntoRev:  # Solo consideramos dispositivos no revocados
-            path = hoja
-            
-            while path > 1:
-                padre = get_parent_index(path)
-                hermano = get_sibling_index(path)
-                
-                # Agregamos el hermano al conjunto de cobertura solo si:
-                # - No está en el conjunto de dispositivos revocados.
-                # - No está ya cubierto por un nodo ancestro
-                if hermano not in conjuntoRev and hermano not in conjuntoCob:
-                    conjuntoCob.add(hermano)
-                
-                # Verificamos si el padre ya cubre los dispositivos activos en este subárbol
-                if padre in conjuntoCob:
-                    break
-                
-                # Continuamos hacia el padre
-                path = padre
-    
-    return conjuntoCob
-
-def getConjuntoCoberturaNoSeUsa(dispositivos,conjuntoRev):
-    conjuntoCob = set()
-    #Recorrido hojas
-    for nodo in range(2 ** dispositivos, 2 ** (dispositivos + 1)):
-        disp = nodo - (2 ** dispositivos) + 1
-        if disp not in conjuntoRev:
-            path = nodo
-            while path > 1:
-                hermano = get_sibling_index(path)
-                if hermano in conjuntoCob:
-                    conjuntoCob.discard(hermano)
-                else:
-                    conjuntoCob.add(hermano)
-                # Subimos al padre en la siguiente iteración
-                path = get_parent_index(path)
-
-    return conjuntoCob
-"""
 def pad_block(data, blockSize):
     # Applies PKCS#7 padding to a single block.
     padding_len = blockSize - (len(data) % blockSize)
@@ -325,8 +203,11 @@ def split_into_blocks(data, block_size=16):
     
     return blocks
 
+##########################################################################
+#                      PROCEDIMIENTO DE ENCRIPTACIÓN                     #
+##########################################################################
 
-def encryptionProcedure(arbol, conjuntoCobertura, contenido):
+def encryptionProcedure(conjuntoCobertura, contenido):
 
     # Paso 1: generar una clave aleatoria para cifrar el archivo
     k = os.urandom(16)
@@ -353,34 +234,87 @@ def encryptionProcedure(arbol, conjuntoCobertura, contenido):
     # Paso 6: retornar las claves 
     return {"claves_cifradas": clavesCifradas, "contenido_cifrado": (iv, archivoCifrado)}
 
-def decryptionProcedure(contenido_cifrado, c_keys, k):
-    bloques_descifrados = []
-    offset = 0
+##########################################################################
+#                      PROCESO DE DESENCRIPTACIÓN                        #
+##########################################################################
 
-    while offset < len(contenido_cifrado):
-        iv = contenido_cifrado[offset:offset + 16]  # Obtener IV del bloque
-        offset += 16
-        ciphertext_block = contenido_cifrado[offset:offset + 16]  # Obtener bloque de cifrado
-        offset += 16
-        # Desencriptar el bloque
-        decrypted_block = decrypt(k, iv, ciphertext_block)
-        bloques_descifrados.append(decrypted_block)
+def decryptionProcedure(arbol, contenido_cifrado, c_keys, nodoDest, conjuntoCobertura):
+    # Paso 1: Buscar el nodo correspondiente a nodoDest en el árbol
+    nodoDest_obj = None
+    for nodo in arbol:
+        if nodo.numero == nodoDest:
+            nodoDest_obj = nodo
+            break
+
+    if nodoDest_obj is None:
+        raise ValueError(f"Nodo destino {nodoDest} no encontrado en el árbol")
     
-    # Combina los bloques desencriptados
-    plaintext = b''.join(bloques_descifrados)
+    # Paso 2: Si el nodo destino está en el conjunto de cobertura, desencriptamos con su clave
+    if nodoDest_obj in conjuntoCobertura:
+        print("Desencriptando con el nodo destino...")
+        kCifrada = c_keys.get(f"nodo_{nodoDest_obj.numero}")
+        if not kCifrada:
+            raise ValueError(f"No se encontró la clave cifrada para el nodo {nodoDest_obj.numero}")
+        
+        iv_clave_cifrada, ciphertext_clave_cifrada = kCifrada
+        # Desencriptar con la clave del nodo destino
+        k = decrypt(nodoDest_obj.clave, iv_clave_cifrada, ciphertext_clave_cifrada)
+        
+    else:
+        # Paso 3: Si el nodo destino no está en el conjunto de cobertura, buscamos el nodo de cobertura más cercano
+        print("Buscando el nodo de cobertura más cercano...")
+        nodo_actual = nodoDest_obj
+        
+        # Subimos en el árbol hasta encontrar un nodo que esté en el conjunto de cobertura
+        while nodo_actual is not None:
+            # Si encontramos un nodo en el conjunto de cobertura, lo seleccionamos
+            if nodo_actual in conjuntoCobertura:
+                print(f"Encontramos el nodo de cobertura: {nodo_actual.numero}")
+                break
 
-    # Remover el padding PKCS#7
-    padding_len = plaintext[-1]  # El último byte indica la longitud del padding
-    if padding_len < 1 or padding_len > 16:  # Verifica que el padding sea válido
-        raise ValueError(f"Padding inválido o corrupto. Longitud del padding: {padding_len}.")
+            # Si no está en el conjunto de cobertura, subimos al padre
+            nodo_actual = nodo_actual.padre
+        
+        # Si hemos encontrado un nodo en el conjunto de cobertura
+        if nodo_actual in conjuntoCobertura:
+            kCifrada = c_keys.get(f"nodo_{nodo_actual.numero}")
+            if not kCifrada:
+                raise ValueError(f"No se encontró la clave cifrada para el nodo {nodo_actual.numero}")
+            
+            iv_clave_cifrada, ciphertext_clave_cifrada = kCifrada
+            # Desencriptar con la clave del nodo relacionado
+            k = decrypt(nodo_actual.clave, iv_clave_cifrada, ciphertext_clave_cifrada)
+            
+        else:
+            raise ValueError("No se encontró un nodo de cobertura al subir por el árbol.")
     
-    # Asegúrate de que la longitud del padding no sea mayor que la longitud del texto descifrado
-    if padding_len > len(plaintext):
-        raise ValueError("Padding inválido o corrupto. El padding es mayor que el tamaño del texto descifrado.")
-    
-    return plaintext[:-padding_len]  # Retornar el contenido sin el padding
+    # Paso 4: Desencriptar el contenido cifrado utilizando la clave 'k' obtenida
+    print("Desencriptando el contenido cifrado...")
 
+    # El contenido cifrado está en la forma: iv + datos_cifrados por cada bloque
+    contenido_descifrado = b''
 
+    # Recorremos el contenido cifrado en bloques de 32 bytes (16 bytes IV + 16 bytes de datos cifrados)
+    for i in range(0, len(contenido_cifrado), 32):  # Cada bloque tiene 16 bytes de IV + 16 bytes de datos cifrados
+        iv = contenido_cifrado[i:i+16]  # IV
+        ciphertext = contenido_cifrado[i+16:i+32]  # Datos cifrados
+
+        # Desencriptar cada bloque con la clave 'k'
+        bloque_descifrado = decrypt(k,iv,ciphertext)
+
+        # Añadimos el bloque descifrado al contenido final
+        contenido_descifrado += bloque_descifrado
+
+    # Después de desencriptar, es posible que el contenido esté relleno (padding)
+    # Debemos eliminar el relleno, por ejemplo, con PKCS7
+    unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+    contenido_descifrado = unpadder.update(contenido_descifrado) + unpadder.finalize()
+
+    return contenido_descifrado
+
+##########################################################################
+#                        COMPARACIÓN DE IMÁGENES                         #
+##########################################################################
 def comparar_imagenes(ruta_imagen1, ruta_imagen2):
     with open(ruta_imagen1, "rb") as img1, open(ruta_imagen2, "rb") as img2:
         contenido_img1 = img1.read()
@@ -393,18 +327,24 @@ def comparar_imagenes(ruta_imagen1, ruta_imagen2):
             print("Las imágenes son diferentes.")
             return False
 
-# Usar la función
+##########################################################################
+#                                 MAIN                                   #
+##########################################################################
 
 if __name__ == "__main__":
-    dispositivos = int(input("Introduce el número de dispositivos (potencia de 2): "))
-    
-    # Verificamos si el número de dispositivos es potencia de 2
+    # Entrada: Número de dispositivos (hojas)
+    dispositivos = int(input("Introduce el número de dispositivos (hojas): "))
+
+    # Verificamos si el número de dispositivos es una potencia de 2
     if dispositivos % 2 != 0:
         print("El número de dispositivos debe ser una potencia de 2.")
+    else:
+        # Calculamos el número de niveles del árbol basándonos en el número de hojas
+        lvls = int(math.log2(dispositivos)) + 1  # +1 para incluir la raíz del árbol
+        arbol = crearArbol(lvls)
 
-    # Calculamos el número de niveles del árbol
-    lvls = math.ceil(math.log2(dispositivos))
-    arbol = crearArbol(lvls)
+    print(f"El árbol tendrá {lvls} niveles y {dispositivos} hojas.")
+
     # Para imprimir los nodos y verificar que todos están en el árbol
     # Mostrar la estructura del árbol
     for nodo in arbol:
@@ -428,7 +368,7 @@ if __name__ == "__main__":
        # file = f"C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/image.jpg"
     
     # Encriptación del contenido del fichero con los nodos del conjunto de cobertura
-    res = encryptionProcedure(arbol,conjunto_cobertura,file)
+    res = encryptionProcedure(conjunto_cobertura,file)
     # imprimirArbol(arbol)
 
     # Pregunta al usuario qué dispositivo quiere que sea el destinatario (debe ser un nodo hoja)
@@ -436,14 +376,14 @@ if __name__ == "__main__":
     imprimir_nodos_hoja(arbol, conjunto_revocados)
     nodoDest = int(input("¿Qué dispositivo quieres que reciba el mensaje?"))
 
-    clave_cifrada = next(iter(res["claves_cifradas"].values()))  # Obtener el primer par (IV, ciphertext)
+    """clave_cifrada = next(iter(res["claves_cifradas"].values()))  # Obtener el primer par (IV, ciphertext)
     iv_clave_cifrada, ciphertext_clave_cifrada = clave_cifrada
     #??
     nodo_destino = arbol[nodoDest - 1]  # Obtiene el nodo destinatario específico
-    k = decrypt(nodo_destino.clave, iv_clave_cifrada, ciphertext_clave_cifrada)  # Desencriptar la clave `k`
+    k = decrypt(nodo_destino.clave, iv_clave_cifrada, ciphertext_clave_cifrada)  # Desencriptar la clave `k`"""
 
     # Desencriptar el contenido usando `k`
-    contenido_descifrado = decryptionProcedure(res["contenido_cifrado"][1], res["claves_cifradas"], k)
+    contenido_descifrado = decryptionProcedure(arbol, res["contenido_cifrado"][1], res["claves_cifradas"], nodoDest, conjunto_cobertura)
     # Guardar contenido descifrado en un nuevo archivo
     with open("contenido_descifrado.jpg", "wb") as file:
         print("Writing file...")
