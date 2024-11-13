@@ -424,8 +424,8 @@ if __name__ == "__main__":
  
     file = input("Ingresa un archivo para cifrar (ingresa para omitir): ")
     if file:
-       # file = os.path.join(os.getcwd(), "image.jpg")
-        file = f"C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/image.jpg"
+        file = os.path.join(os.getcwd(), "image.jpg")
+       # file = f"C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/image.jpg"
     
     # Encriptación del contenido del fichero con los nodos del conjunto de cobertura
     res = encryptionProcedure(arbol,conjunto_cobertura,file)
@@ -449,9 +449,9 @@ if __name__ == "__main__":
         print("Writing file...")
         file.write(contenido_descifrado)
 
-    ruta_imagen_original = "C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/image.jpg"
-    ruta_imagen_descifrado = "C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/contenido_descifrado.jpg"
-    comparar_imagenes(ruta_imagen_original, ruta_imagen_descifrado)
-    #comparar_imagenes("image.jpg", "contenido_descifrado.jpg")
+    #ruta_imagen_original = "C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/image.jpg"
+    #ruta_imagen_descifrado = "C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/contenido_descifrado.jpg"
+    #comparar_imagenes(ruta_imagen_original, ruta_imagen_descifrado)
+    comparar_imagenes("image.jpg", "contenido_descifrado.jpg")
 
    
