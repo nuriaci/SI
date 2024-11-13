@@ -308,22 +308,23 @@ def getConjuntoCoberturaNoSeUsa(dispositivos,conjuntoRev):
 def pad_block(data, blockSize):
     # Applies PKCS#7 padding to a single block.
     padding_len = blockSize - (len(data) % blockSize)
+    if padding_len == 0:  # Si el tamaño ya es múltiplo del bloque, agregamos el relleno completo
+        padding_len = blockSize
     padding = bytes([padding_len] * padding_len)  # Genera padding con el byte de padding_len
     return data + padding
 
-def split_into_blocks(data):
-    # Splits data into 16-byte blocks with padding for the last block if necessary.
-    block_size = 16
+def split_into_blocks(data, block_size=16):
     blocks = []
     
-    # Split data into blocks
+    # Divide los datos en bloques del tamaño especificado
     for i in range(0, len(data), block_size):
         block = data[i:i + block_size]
         if len(block) < block_size:
-            block = pad_block(block, block_size)  # Add padding if block is smaller than 16 bytes
+            block = pad_block(block, block_size)  # Agregar relleno si el bloque es más pequeño
         blocks.append(block)
     
     return blocks
+
 
 def encryptionProcedure(arbol, conjuntoCobertura, contenido):
 
@@ -352,7 +353,6 @@ def encryptionProcedure(arbol, conjuntoCobertura, contenido):
     # Paso 6: retornar las claves 
     return {"claves_cifradas": clavesCifradas, "contenido_cifrado": (iv, archivoCifrado)}
 
-
 def decryptionProcedure(contenido_cifrado, c_keys, k):
     bloques_descifrados = []
     offset = 0
@@ -362,21 +362,23 @@ def decryptionProcedure(contenido_cifrado, c_keys, k):
         offset += 16
         ciphertext_block = contenido_cifrado[offset:offset + 16]  # Obtener bloque de cifrado
         offset += 16
-
+        # Desencriptar el bloque
         decrypted_block = decrypt(k, iv, ciphertext_block)
         bloques_descifrados.append(decrypted_block)
-
+    
+    # Combina los bloques desencriptados
     plaintext = b''.join(bloques_descifrados)
 
     # Remover el padding PKCS#7
     padding_len = plaintext[-1]  # El último byte indica la longitud del padding
-    if padding_len < 1 or padding_len > 16:
-        raise ValueError("Padding inválido o corrupto.")
+    if padding_len < 1 or padding_len > 16:  # Verifica que el padding sea válido
+        raise ValueError(f"Padding inválido o corrupto. Longitud del padding: {padding_len}.")
     
-    return plaintext[:-padding_len]  # Retornar el contenido sin padding
-
-
-
+    # Asegúrate de que la longitud del padding no sea mayor que la longitud del texto descifrado
+    if padding_len > len(plaintext):
+        raise ValueError("Padding inválido o corrupto. El padding es mayor que el tamaño del texto descifrado.")
+    
+    return plaintext[:-padding_len]  # Retornar el contenido sin el padding
 
 
 def comparar_imagenes(ruta_imagen1, ruta_imagen2):
@@ -422,7 +424,8 @@ if __name__ == "__main__":
  
     file = input("Ingresa un archivo para cifrar (ingresa para omitir): ")
     if file:
-        file = os.path.join(os.getcwd(), "image.jpg")#f"C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/{file}"
+       # file = os.path.join(os.getcwd(), "image.jpg")
+        file = f"C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/image.jpg"
     
     # Encriptación del contenido del fichero con los nodos del conjunto de cobertura
     res = encryptionProcedure(arbol,conjunto_cobertura,file)
@@ -433,17 +436,22 @@ if __name__ == "__main__":
     imprimir_nodos_hoja(arbol, conjunto_revocados)
     nodoDest = int(input("¿Qué dispositivo quieres que reciba el mensaje?"))
 
-    # clave_cifrada = next(iter(res["claves_cifradas"].values()))  # Obtener el primer par (IV, ciphertext)
-    # iv_clave_cifrada, ciphertext_clave_cifrada = clave_cifrada
-    # k = decrypt(arbol.clave, iv_clave_cifrada, ciphertext_clave_cifrada)  # Desencriptar la clave `k`
+    clave_cifrada = next(iter(res["claves_cifradas"].values()))  # Obtener el primer par (IV, ciphertext)
+    iv_clave_cifrada, ciphertext_clave_cifrada = clave_cifrada
+    #??
+    nodo_destino = arbol[nodoDest - 1]  # Obtiene el nodo destinatario específico
+    k = decrypt(nodo_destino.clave, iv_clave_cifrada, ciphertext_clave_cifrada)  # Desencriptar la clave `k`
 
-    # # Desencriptar el contenido usando `k`
-    # contenido_descifrado = decryptionProcedure(res["contenido_cifrado"][1], res["claves_cifradas"], k)
-    # # Guardar contenido descifrado en un nuevo archivo
-    # with open("contenido_descifrado.jpg", "wb") as file:
-    #     print("Writing file...")
-    #     file.write(contenido_descifrado)
+    # Desencriptar el contenido usando `k`
+    contenido_descifrado = decryptionProcedure(res["contenido_cifrado"][1], res["claves_cifradas"], k)
+    # Guardar contenido descifrado en un nuevo archivo
+    with open("contenido_descifrado.jpg", "wb") as file:
+        print("Writing file...")
+        file.write(contenido_descifrado)
 
-    # comparar_imagenes("image.jpg", "contenido_descifrado.jpg")
+    ruta_imagen_original = "C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/lab3/image.jpg"
+    ruta_imagen_descifrado = "C:/Users/nuria/Desktop/master/SI/practicas/practica1/SI/contenido_descifrado.jpg"
+    comparar_imagenes(ruta_imagen_original, ruta_imagen_descifrado)
+    #comparar_imagenes("image.jpg", "contenido_descifrado.jpg")
 
    
