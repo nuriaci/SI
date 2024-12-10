@@ -52,11 +52,11 @@ class User:
 
         # Ya no necesitamos public_bytes() ya que estamos trabajando con un objeto 'bytes'
         header = public_key.hex() + "\n\n"  # Convertimos a hexadecimal
-
+        print(type(data))
         # En función de si tienes datos o no
         if data:
             # Envías cabecera y datos
-            payload = header.encode('utf-8') + data  # Convierte 'header' a bytes antes de concatenar
+            payload = header + data  # Convierte 'header' a bytes antes de concatenar
         else:
             # Envías solamente la cabecera
             payload = header
@@ -86,49 +86,41 @@ class DiffieHellman:
                                          serialization.PublicFormat.Raw)
 
     def actualizarDH(self, publicKey):
-        self.dhUpdateCount += 1  # Incrementamos el contador
-
-        # Si el contador alcanza el número de mensajes para actualizar
-        if self.dhUpdateCount >= self.update_interval:
-            print(f"Actualizando claves DH después de {self.update_interval} mensajes.")
-            self.sharedKey = X25519PublicKey.from_public_bytes(publicKey)
-            newRoot = self.rootRatchet.actualizarCKMK(self.privateKey.exchange(self.sharedKey))[1]
-            self.sendRatchet = HKDFRatchet(newRoot)
-            self.recvRatchet = HKDFRatchet(newRoot)
-            self.dhUpdateCount = 0  # Reiniciamos el contador
-
-        else:
-            # Actualización normal de las claves sin cambio de root
-            self.sharedKey = X25519PublicKey.from_public_bytes(publicKey)
-            newRoot = self.rootRatchet.actualizarCKMK(self.privateKey.exchange(self.sharedKey))[1]
-            self.sendRatchet = HKDFRatchet(newRoot)
-            self.recvRatchet = HKDFRatchet(newRoot)
+        self.sharedKey = X25519PublicKey.from_public_bytes(publicKey)
+        newRoot = self.rootRatchet.actualizarCKMK(self.privateKey.exchange(self.sharedKey))[1]
+        self.sendRatchet = HKDFRatchet(newRoot)
+        self.recvRatchet = HKDFRatchet(newRoot)
 
     def send(self):
         # Primero actualizamos el ratchet de DH
         self.dhUpdateCount += 1  # Incrementamos al enviar el mensaje
         if self.dhUpdateCount >= self.update_interval:
-            self.actualizarDH(self.sharedKey.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw))
+            print(f"Actualizando claves DH después de {self.update_interval} mensajes.")
+            self.privateKey = X25519PrivateKey.generate()
+            self.publicKey = self.privateKey.public_key()
+            #self.actualizarDH(self.publicKey)
             self.dhUpdateCount = 0  # Reiniciamos el contador
-        else:
-            self.actualizarDH(self.sharedKey.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw))
 
         # Aquí devolvemos la clave secreta (clave simétrica) y el IV, no el objeto HKDFRatchet
         newRatchet = self.sendRatchet.actualizarCKMK(self.privateKey.exchange(self.sharedKey))
         claveSimetrica = newRatchet[0]
         iv = newRatchet[2]
 
+        self.actualizarDH(self.sharedKey.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw))
+
         return claveSimetrica, iv
 
 
     def receive(self, publicKey):
-    # Primero, actualizamos las claves DH con la clave pública recibida
-        self.actualizarDH(publicKey)
+
+        self.sharedKey = X25519PublicKey.from_public_bytes(publicKey)
 
         # Actualizamos el ratchet de recepción y obtenemos la clave simétrica (symmetric key) y el iv
         newRatchet = self.recvRatchet.actualizarCKMK(self.privateKey.exchange(self.sharedKey))
         claveSimetrica = newRatchet[0]
         iv = newRatchet[2]
+
+        self.actualizarDH(publicKey)
 
         return claveSimetrica, iv
 
@@ -186,7 +178,7 @@ def encryptMessage(messageKey, iv, plaintext):
         return None
     
     aesgcm = AESGCM(messageKey)
-    ciphertext = aesgcm.encrypt(iv, plaintext.encode(), None)
+    ciphertext = aesgcm.encrypt(iv, bytes(plaintext,"utf-8"), None).hex()
     return ciphertext
 
 
@@ -194,7 +186,7 @@ def encryptMessage(messageKey, iv, plaintext):
 def decryptMessage(messageKey, iv, ciphertext):
     try:
         aesgcm = AESGCM(messageKey)
-        plaintext = aesgcm.decrypt(iv, ciphertext, None).decode()
+        plaintext = aesgcm.decrypt(iv, bytes.fromhex(ciphertext), None)
         return plaintext
     except cryptography.exceptions.InvalidTag as e:
         print("Error: InvalidTag - Decryption failed. This might be due to mismatched key or iv.")
@@ -219,8 +211,8 @@ if __name__ == "__main__":
     def on_message_user1(client, userdata, message):
     
         if message.topic == str(user1.recvChannel):
-            payload = message.payload.split(b"\n\n")  # Trabajar con bytes
-            publicKey = bytes.fromhex(payload[0].decode())  # Clave pública del remitente
+            payload = message.payload.decode("utf-8").split("\n\n")  # Trabajar con bytes
+            publicKey = bytes.fromhex(payload[0])  # Clave pública del remitente
             ciphertext = payload[1]  # Cuerpo del mensaje cifrado
 
             # Si el mensaje no tiene cifrado (vacío), solo imprimimos la cabecera
@@ -244,8 +236,8 @@ if __name__ == "__main__":
     def on_message_user2(client, userdata, message):
 
         if message.topic == str(user2.recvChannel):
-            payload = message.payload.split(b"\n\n")  # Trabajar con bytes
-            publicKey = bytes.fromhex(payload[0].decode())  # Clave pública del remitente
+            payload = message.payload.decode("utf-8").split("\n\n")  # Trabajar con bytes
+            publicKey = bytes.fromhex(payload[0])  # Clave pública del remitente
             ciphertext = payload[1]  # Cuerpo del mensaje cifrado
             # Si el mensaje no tiene cifrado (vacío), solo imprimimos la cabecera
             if not ciphertext:
