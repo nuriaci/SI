@@ -12,11 +12,10 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 import os
 
-# Crear parámetros globales para Diffie-Hellman (compartidos por Alice y Bob)#
-# parameters = dh.generate_parameters(generator=2, key_size=2048)
 
 #### Clase User
 class User:
+    # Inicializa un usuario 
     def __init__(self, name, sendChannel, recvChannel, rootKey):
         self.name = name
         self.client = mqtt.Client()
@@ -24,22 +23,23 @@ class User:
         self.sendChannel = sendChannel
         self.recvChannel = recvChannel
 
+    # Configura el cliente MQTT para recibir mensajes
     def inicioMQTT(self, mqtt_server, on_message):
-        self.client.on_message = on_message
+        self.client.on_message = on_message # Establece la función de manejo de mensajes
 
-        self.client.connect(mqtt_server)
+        self.client.connect(mqtt_server) # Conecta al servidor MQTT
 
-        self.client.subscribe(self.sendChannel, qos=2)
+        self.client.subscribe(self.sendChannel, qos=2) # Suscribe a los canales
         self.client.subscribe(self.recvChannel, qos=2)
 
-        self.client.loop_start()
+        self.client.loop_start() # Inicia el bucle de escucha
 
         while not self.client.is_connected():
-            time.sleep(1)
+            time.sleep(1) # Espera a que se conecte
 
     def publish(self, data):
         if data:
-            # Obtienen la Secret Shared Key y el iv del ratchet de envío
+            # Deriva la clave secreta y el IV utilizando el ratchet
             send_result = self.DHRatchet.send()
             secretKey = send_result[0]
             iv = send_result[1]
@@ -50,13 +50,13 @@ class User:
         # Obtienes la clave pública del ratchet de DH
         public_key = self.DHRatchet.getPublicKey()
 
-        # Ya no necesitamos public_bytes() ya que estamos trabajando con un objeto 'bytes'
+        
         header = public_key.hex() + "\n\n"  # Convertimos a hexadecimal
         print(type(data))
         # En función de si tienes datos o no
         if data:
             # Envías cabecera y datos
-            payload = header + data  # Convierte 'header' a bytes antes de concatenar
+            payload = header + data  
         else:
             # Envías solamente la cabecera
             payload = header
@@ -71,12 +71,12 @@ class User:
 
 class DiffieHellman:
     def __init__(self, rootKey, update_interval=5):
-        self.privateKey = X25519PrivateKey.generate()
-        self.publicKey = self.privateKey.public_key()
-        self.rootKey = rootKey
-        self.sharedKey = None
-        self.rootRatchet = HKDFRatchet(rootKey)
-        self.sendRatchet = None
+        self.privateKey = X25519PrivateKey.generate() # Genera clave privada X25519
+        self.publicKey = self.privateKey.public_key()  # Obtén clave pública
+        self.rootKey = rootKey # Clave raíz inicial
+        self.sharedKey = None 
+        self.rootRatchet = HKDFRatchet(rootKey) # Inicializa el ratchet raíz
+        self.sendRatchet = None # Ratchet para enviar
         self.recvRatchet = None
         self.dhUpdateCount = 0  # Contador de mensajes enviados o recibidos
         self.update_interval = update_interval  # Cuántos mensajes antes de actualizar
@@ -84,7 +84,7 @@ class DiffieHellman:
     def getPublicKey(self):
         return self.publicKey.public_bytes(serialization.Encoding.Raw,
                                          serialization.PublicFormat.Raw)
-
+    # Actualiza la clave compartida con la clave pública recibida
     def actualizarDH(self, publicKey):
         self.sharedKey = X25519PublicKey.from_public_bytes(publicKey)
         newRoot = self.rootRatchet.actualizarCKMK(self.privateKey.exchange(self.sharedKey))[1]
@@ -92,16 +92,16 @@ class DiffieHellman:
         self.recvRatchet = HKDFRatchet(newRoot)
 
     def send(self):
-        # Primero actualizamos el ratchet de DH
-        self.dhUpdateCount += 1  # Incrementamos al enviar el mensaje
+
+        self.dhUpdateCount += 1  # Incrementa contador
         if self.dhUpdateCount >= self.update_interval:
             print(f"Actualizando claves DH después de {self.update_interval} mensajes.")
+            # Genera nuevas claves si se alcanza el límite de mensajes
             self.privateKey = X25519PrivateKey.generate()
             self.publicKey = self.privateKey.public_key()
-            #self.actualizarDH(self.publicKey)
             self.dhUpdateCount = 0  # Reiniciamos el contador
 
-        # Aquí devolvemos la clave secreta (clave simétrica) y el IV, no el objeto HKDFRatchet
+         # Deriva clave e IV para el mensaje
         newRatchet = self.sendRatchet.actualizarCKMK(self.privateKey.exchange(self.sharedKey))
         claveSimetrica = newRatchet[0]
         iv = newRatchet[2]
@@ -114,7 +114,6 @@ class DiffieHellman:
     def receive(self, publicKey):
 
         self.sharedKey = X25519PublicKey.from_public_bytes(publicKey)
-
         # Actualizamos el ratchet de recepción y obtenemos la clave simétrica (symmetric key) y el iv
         newRatchet = self.recvRatchet.actualizarCKMK(self.privateKey.exchange(self.sharedKey))
         claveSimetrica = newRatchet[0]
@@ -177,8 +176,8 @@ def encryptMessage(messageKey, iv, plaintext):
         print("Error: La clave secreta o el IV son None.")
         return None
     
-    aesgcm = AESGCM(messageKey)
-    ciphertext = aesgcm.encrypt(iv, bytes(plaintext,"utf-8"), None).hex()
+    aesgcm = AESGCM(messageKey) # Inicializa AES-GCM
+    ciphertext = aesgcm.encrypt(iv, bytes(plaintext,"utf-8"), None).hex() # Cifra y devuelve como hex
     return ciphertext
 
 
@@ -186,7 +185,7 @@ def encryptMessage(messageKey, iv, plaintext):
 def decryptMessage(messageKey, iv, ciphertext):
     try:
         aesgcm = AESGCM(messageKey)
-        plaintext = aesgcm.decrypt(iv, bytes.fromhex(ciphertext), None)
+        plaintext = aesgcm.decrypt(iv, bytes.fromhex(ciphertext), None) # Descifra el mensaje
         return plaintext
     except cryptography.exceptions.InvalidTag as e:
         print("Error: InvalidTag - Decryption failed. This might be due to mismatched key or iv.")
@@ -207,11 +206,11 @@ if __name__ == "__main__":
     user1 = User(nombreUser1, nombreCanal + ".in", nombreCanal + ".out", rootKey)
     user2 = User(nombreUser2, nombreCanal + ".out", nombreCanal + ".in",  rootKey)
 
-        # Función para manejar los mensajes recibidos por el usuario 1 (Alice)
+    # Función para manejar los mensajes recibidos por el usuario 1 (Alice)
     def on_message_user1(client, userdata, message):
     
         if message.topic == str(user1.recvChannel):
-            payload = message.payload.decode("utf-8").split("\n\n")  # Trabajar con bytes
+            payload = message.payload.decode("utf-8").split("\n\n")  
             publicKey = bytes.fromhex(payload[0])  # Clave pública del remitente
             ciphertext = payload[1]  # Cuerpo del mensaje cifrado
 
@@ -219,7 +218,7 @@ if __name__ == "__main__":
             if not ciphertext:
                 user1.DHRatchet.actualizarDH(publicKey)
             else:
-                # Asegúrate de que el ratchet de recepción esté actualizado
+                
                 messageKey, iv = user1.DHRatchet.receive(publicKey)
 
                 if messageKey and iv:
@@ -229,14 +228,11 @@ if __name__ == "__main__":
                     print("Error al obtener la clave de mensaje o IV para descifrar.")
 
 
-            
-
-
     # Función para manejar los mensajes recibidos por el usuario 2 (Bob)
     def on_message_user2(client, userdata, message):
 
         if message.topic == str(user2.recvChannel):
-            payload = message.payload.decode("utf-8").split("\n\n")  # Trabajar con bytes
+            payload = message.payload.decode("utf-8").split("\n\n")  
             publicKey = bytes.fromhex(payload[0])  # Clave pública del remitente
             ciphertext = payload[1]  # Cuerpo del mensaje cifrado
             # Si el mensaje no tiene cifrado (vacío), solo imprimimos la cabecera
@@ -250,7 +246,7 @@ if __name__ == "__main__":
 
 
     # Creamos conexión a MQTT
-    mqtt_server = "localhost"#"mastropiero.det.uvigo.es"  # Aquí debes poner la dirección de tu servidor MQTT
+    mqtt_server = "localhost"# Aquí debes poner la dirección de tu servidor MQTT
     user1.inicioMQTT(mqtt_server, on_message_user1)  # Inicia la conexión para el usuario 1
     user2.inicioMQTT(mqtt_server, on_message_user2)  # Inicia la conexión para el usuario 2
 
@@ -259,7 +255,8 @@ if __name__ == "__main__":
     user2.publish("")
 
     time.sleep(2)
-
+    
+    #Bucle: enviar mensajes
     while True:
         print()
         print("*** 1 para enviar el mensaje como " + nombreUser1)
